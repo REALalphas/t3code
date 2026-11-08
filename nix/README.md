@@ -27,10 +27,10 @@ result/bin/t3 --version
 
 Two fixed-output hashes pin the dependency closures:
 
-| File | Hash | Refresh when |
-| ---- | ---- | ------------ |
-| `nix/unwrapped.nix` (`pnpmDeps.hash`) | pnpm store | `pnpm-lock.yaml` changes — run `nix build`, copy `got: sha256-…` from the mismatch error |
-| `nix/resource-monitor.nix` (`cargoHash`) | cargo vendor | `native/resource-monitor/Cargo.lock` changes — same procedure |
+| File                                     | Hash         | Refresh when                                                                             |
+| ---------------------------------------- | ------------ | ---------------------------------------------------------------------------------------- |
+| `nix/unwrapped.nix` (`pnpmDeps.hash`)    | pnpm store   | `pnpm-lock.yaml` changes — run `nix build`, copy `got: sha256-…` from the mismatch error |
+| `nix/resource-monitor.nix` (`cargoHash`) | cargo vendor | `native/resource-monitor/Cargo.lock` changes — same procedure                            |
 
 > Both hashes verified against a real build from this checkout — the
 > pnpm hash matches `a9e709f`'s lockfile, the cargo hash matches nixpkgs'

@@ -44,6 +44,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Ref from "effect/Ref";
+import * as Result from "effect/Result";
 import * as Scheduler from "effect/Scheduler";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
@@ -70,6 +71,7 @@ import * as ProjectionMaintenance from "./ProjectionMaintenance.ts";
 import * as ProjectionReplay from "./testkit/ProjectionReplay.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 import * as ProjectStore from "./ProjectStore.ts";
+import { planProjectCommand, type ProjectCommand } from "./ProjectCommands.ts";
 import * as ProviderRuntimeRecovery from "./ProviderRuntimeRecoveryService.ts";
 import * as TurnItemPositionStore from "./TurnItemPositionStore.ts";
 
@@ -83,6 +85,7 @@ const layerStoresProvided = Layer.mergeAll(
   layerDatabase,
   layerEventStoreProvided,
   layerProjectionStoreProvided,
+  ProjectStore.layer.pipe(Layer.provide(layerDatabase)),
 );
 const layerEventSinkProvided = EventSink.layer.pipe(Layer.provide(layerStoresProvided));
 const layerEffectOutboxProvided = EffectOutbox.layer.pipe(Layer.provide(layerDatabase));
@@ -713,6 +716,89 @@ it.effect.each([false, true])("groups shutdown commits with rollback=%s", (fail)
     Effect.withTracer(tracer),
     Effect.withTracerEnabled(true),
     Effect.provideService(Statement.SpanPropagationEnabled, true),
+  );
+});
+
+it.layer(Layer.fresh(layerTest))("project icon autofill persistence", (it) => {
+  it.effect.each(["empty", "icon", "favicon", "deleted"] as const)(
+    "commits icon autofill only while the project has no icon: %s",
+    (state) =>
+      Effect.gen(function* () {
+        const sink = yield* EventSink.EventSinkV2;
+        const projects = yield* ProjectStore.ProjectStoreV2;
+        const store = yield* EventStore.EventStoreV2;
+        const now = yield* DateTime.now;
+        const projectId = ProjectId.make(`project:autofill-commit:${state}`);
+        const icon = { kind: "lucide", name: "terminal", color: "red" } as const;
+        const generatedIcon = { kind: "lucide", name: "folder-code", color: "blue" } as const;
+        const prepare = Effect.fn("test.prepareProjectCommand")(function* (
+          command: ProjectCommand,
+        ) {
+          const project = Option.getOrUndefined(yield* projects.get(projectId));
+          return {
+            commandId: command.commandId,
+            projectId,
+            commandType: command.type,
+            acceptedAt: now,
+            event: Result.getOrThrow(
+              planProjectCommand({
+                command,
+                state: { project, workspaceOwner: undefined },
+                eventId: EventId.make(`event:${command.commandId}`),
+                now,
+              }),
+            ),
+          };
+        });
+        yield* sink.commitProjectCommand(
+          yield* prepare({
+            type: "project.create",
+            commandId: CommandId.make(`create:${projectId}`),
+            projectId,
+            title: "Autofill",
+            workspaceRoot: `/repo/${state}`,
+          }),
+        );
+        const autofill = {
+          ...(yield* prepare({
+            type: "project.meta.update",
+            commandId: CommandId.make(`autofill:${projectId}`),
+            projectId,
+            projectIcon: generatedIcon,
+          })),
+          onlyIfIconMissing: true,
+        };
+        if (state !== "empty") {
+          yield* sink.commitProjectCommand(
+            yield* prepare(
+              state === "deleted"
+                ? {
+                    type: "project.delete",
+                    commandId: CommandId.make(`user:${projectId}`),
+                    projectId,
+                  }
+                : {
+                    type: "project.meta.update",
+                    commandId: CommandId.make(`user:${projectId}`),
+                    projectId,
+                    ...(state === "icon" ? { projectIcon: icon } : { faviconPath: "/favicon.ico" }),
+                  },
+            ),
+          );
+        }
+        const before = yield* store.latestApplicationSequence;
+        const result = yield* sink.commitProjectCommand(autofill);
+        assert.equal(result.committed, state === "empty");
+        assert.equal(yield* store.latestApplicationSequence, before + (state === "empty" ? 1 : 0));
+        const project = Option.getOrThrow(yield* projects.get(projectId, { includeDeleted: true }));
+        assert.deepEqual(
+          project.projectIcon,
+          state === "empty" ? generatedIcon : state === "icon" ? icon : null,
+        );
+        assert.equal(project.faviconPath, state === "favicon" ? "/favicon.ico" : null);
+        assert.equal((yield* sink.commitProjectCommand(autofill)).committed, false);
+        assert.deepEqual((yield* sink.commitProjectCommand(autofill)).receipt, result.receipt);
+      }),
   );
 });
 

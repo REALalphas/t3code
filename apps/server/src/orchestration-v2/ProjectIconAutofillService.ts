@@ -112,6 +112,8 @@ const make = Effect.gen(function* () {
         .get(input.projectId, { includeDeleted: true })
         .pipe(Effect.orElseSucceed(() => Option.none())),
     );
+    if (project === undefined || project.projectIcon !== null || project.faviconPath !== null)
+      return;
     const planned = planProjectCommand({
       command,
       state: { project, workspaceOwner: undefined },
@@ -125,6 +127,7 @@ const make = Effect.gen(function* () {
       commandType: command.type,
       acceptedAt: now,
       event: planned.success,
+      onlyIfIconMissing: true,
     });
   });
 
@@ -172,10 +175,6 @@ const make = Effect.gen(function* () {
         input.projectId,
       ),
     });
-    // The user may have picked an icon while the model was thinking; re-check before writing.
-    const fresh = yield* projects.get(input.projectId);
-    if (Option.isNone(fresh)) return;
-    if (fresh.value.faviconPath !== null || fresh.value.projectIcon !== null) return;
     const projectIcon: ProjectIconOverride = {
       kind: "lucide",
       name: result.name,

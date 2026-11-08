@@ -65,7 +65,7 @@
       apps = eachSystem (system: {
         t3 = {
           type = "app";
-          program = lib.getExe self.packages.${system}.t3code;
+          program = lib.getExe' self.packages.${system}.t3code "t3";
         };
         t3code-desktop = {
           type = "app";

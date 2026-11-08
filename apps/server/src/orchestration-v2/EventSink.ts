@@ -198,6 +198,7 @@ export interface EventSinkV2Shape {
     readonly commandType: string;
     readonly acceptedAt: DateTime.Utc;
     readonly event: UnsequencedProjectEvent;
+    readonly onlyIfIconMissing?: boolean;
   }) => Effect.Effect<
     { readonly receipt: CommandReceiptStore.ProjectCommandReceiptV2; readonly committed: boolean },
     EventSinkV2Error
@@ -791,6 +792,21 @@ const layerBase: Layer.Layer<
             };
             if (!(yield* commandReceipts.insertIfAbsent(reserved))) {
               return { receipt: yield* existingProjectReceipt(input.commandId), event: undefined };
+            }
+            if (input.onlyIfIconMissing) {
+              const project = yield* projectStore.get(input.projectId);
+              if (
+                Option.isNone(project) ||
+                project.value.projectIcon !== null ||
+                project.value.faviconPath !== null
+              ) {
+                const receipt = {
+                  ...reserved,
+                  resultSequence: yield* eventStore.latestApplicationSequence,
+                };
+                yield* commandReceipts.upsert(receipt);
+                return { receipt, event: undefined };
+              }
             }
             const event = yield* eventStore.appendProjectEvent(input.event);
             yield* projectStore.apply(event);

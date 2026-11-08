@@ -171,7 +171,7 @@ stdenv.mkDerivation (
       cp --recursive --no-preserve=mode node_modules "$out"/libexec/t3code
       cp --recursive --no-preserve=mode apps/server/{node_modules,dist} "$out"/libexec/t3code/apps/server
       cp --recursive --no-preserve=mode \
-        apps/desktop/{package.json,node_modules,dist-electron} \
+        apps/desktop/{package.json,node_modules,dist-electron,gnome-extension} \
         "$out"/libexec/t3code/apps/desktop
 
       mkdir --parents "$out"/libexec/t3code/apps/desktop/prod-resources
@@ -191,6 +191,7 @@ stdenv.mkDerivation (
         --add-flags "$out"/libexec/t3code/apps/server/dist/bin.mjs
 
       makeWrapper ${lib.getExe electron} "$out"/bin/t3code-desktop \
+        --set-default T3CODE_DESKTOP_LAUNCHER_PATH "$out/bin/t3code-desktop" \
         --add-flags "$out"/libexec/t3code/apps/desktop \
         --inherit-argv0
     ''
