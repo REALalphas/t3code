@@ -166,6 +166,29 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
   );
   const iconModelDisabledReason = useScopedModelDisabledReason(settings, iconInstanceEntries);
 
+  const enableIconModel = () => {
+    if (!canEnableIconModel) return;
+    const reason = iconModelDisabledReason(
+      activeIconSelection.instanceId,
+      activeIconSelection.model,
+    );
+    if (reason) {
+      toastManager.add({
+        type: "error",
+        title: "Project icon model not saved",
+        description: reason,
+      });
+      return;
+    }
+    updateSettings({
+      projectIconModelSelection: createModelSelection(
+        activeIconSelection.instanceId,
+        activeIconSelection.model,
+        activeIconSelection.options,
+      ),
+    });
+  };
+
   const iconAutofillRow = (
     <SettingsRow
       serverScoped
@@ -294,13 +317,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
                   updateSettings({ projectIconModelSelection: null });
                   return;
                 }
-                updateSettings({
-                  projectIconModelSelection: createModelSelection(
-                    activeIconSelection.instanceId,
-                    activeIconSelection.model,
-                    activeIconSelection.options,
-                  ),
-                });
+                enableIconModel();
               }}
               aria-label="Use a separate project icon model"
             />
