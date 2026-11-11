@@ -6,7 +6,7 @@ import {
   type UsageSummaryInput,
 } from "@t3tools/contracts";
 
-import type { UsageContractMismatch } from "./usageMerge.ts";
+import type { DailyTotals, UsageContractMismatch } from "./usageMerge.ts";
 
 const CURRENCY = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -114,7 +114,23 @@ export function formatDayShort(day: string): string {
   return `${MONTHS[month - 1] ?? ""} ${dayOfMonth}`;
 }
 
-export function enumerateDays(sinceDay: string, untilDay: string): readonly string[] {
+const ALL_TIME_SINCE_DAY = UsageDay.make("1970-01-01");
+
+export function enumerateUsageDays(
+  window: UsageSummaryInput,
+  daily: readonly Pick<DailyTotals, "day">[],
+): readonly string[] {
+  const sinceDay =
+    window.sinceDay === ALL_TIME_SINCE_DAY
+      ? daily.reduce<string>(
+          (first, entry) => (entry.day < first ? entry.day : first),
+          window.untilDay,
+        )
+      : window.sinceDay;
+  return enumerateDays(sinceDay, window.untilDay);
+}
+
+function enumerateDays(sinceDay: string, untilDay: string): readonly string[] {
   const days: string[] = [];
   const start = Date.parse(`${sinceDay}T00:00:00Z`);
   const end = Date.parse(`${untilDay}T00:00:00Z`);
@@ -280,6 +296,15 @@ export function makeWindow(
       resolution,
       sinceTime: sinceTime.toISOString(),
       untilTime: untilTime.toISOString(),
+    };
+  }
+  // Zero days selects all available history.
+  if (days === 0) {
+    return {
+      sinceDay: ALL_TIME_SINCE_DAY,
+      untilDay: UsageDay.make(untilDay),
+      timeZone,
+      resolution,
     };
   }
   // Use calendar arithmetic in UTC; fixed millisecond subtraction crosses DST days incorrectly.

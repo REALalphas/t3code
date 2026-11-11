@@ -2,7 +2,12 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import type { UsageSource } from "@t3tools/contracts";
 
-import { formatHourShort, makeWindow, usageSourceMessages } from "./usageFormat.ts";
+import {
+  enumerateUsageDays,
+  formatHourShort,
+  makeWindow,
+  usageSourceMessages,
+} from "./usageFormat.ts";
 
 function malformedSource(count: number, overrides: Partial<UsageSource> = {}): UsageSource {
   return {
@@ -174,5 +179,25 @@ describe("hourly usage formatting", () => {
     } finally {
       resolvedOptions.mockRestore();
     }
+  });
+});
+
+describe("all-time usage window", () => {
+  it("requests all history and charts from the earliest available day", () => {
+    const window = makeWindow(0, new Date("2026-08-11T12:37:42.123Z"));
+    expect(window.sinceDay).toBe("1970-01-01");
+    expect(window.resolution).toBe("day");
+    expect(window.sinceTime).toBeUndefined();
+    const daily = [{ day: "2026-08-10" }, { day: "2026-08-08" }];
+    expect(enumerateUsageDays(window, daily)).toEqual([
+      "2026-08-08",
+      "2026-08-09",
+      "2026-08-10",
+      "2026-08-11",
+    ]);
+    expect(enumerateUsageDays(window, [])).toEqual(["2026-08-11"]);
+    expect(enumerateUsageDays(makeWindow(7, new Date("2026-08-11T12:00:00Z")), daily)).toHaveLength(
+      7,
+    );
   });
 });
