@@ -73,6 +73,18 @@
         };
       });
 
+      checks = lib.genAttrs (lib.filter (system: lib.hasSuffix "-linux" system) systems) (
+        system:
+        let
+          pkgs = pkgsFor system;
+        in
+        {
+          server-module =
+            assert import ./nix/module.test.nix { inherit pkgs; };
+            pkgs.runCommand "t3code-server-module" { } "touch $out";
+        }
+      );
+
       # Drop-in replacement for `unstable.t3code` in `environment.systemPackages`:
       #
       #   nixpkgs.overlays = [ inputs.t3code-local.overlays.default ];

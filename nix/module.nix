@@ -166,7 +166,7 @@ in
           Type = "simple";
           User = cfg.user;
           Group = cfg.group;
-          ExecStart = lib.escapeShellArgs ([ "${lib.getExe cfg.package}" ] ++ serviceArgs);
+          ExecStart = lib.escapeShellArgs ([ (lib.getExe' cfg.package "t3") ] ++ serviceArgs);
           # NOTE: `t3` resolves agent working directories against the
           # process cwd, so the default start directory is wherever the
           # sysadmin puts the service's work (`dataDir`).
