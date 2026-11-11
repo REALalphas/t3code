@@ -105,6 +105,12 @@ transaction](../../apps/server/src/persistence/AuthSessions.ts); a failed
 replacement must leave the old credential usable. Pairing and browser sessions
 do not follow this replacement rule.
 
+A server publishes its rotating desktop bootstrap secret in an owner-only file
+for its lifetime, after acquiring the T3 home lock. Desktop discovery requires
+that file and the runtime record to name the same live process. An attached
+desktop never owns or stops that process; only its authenticated connection is
+client-owned.
+
 ### Reusable dev credential
 
 Web development environments can accept one `T3CODE_DEV_AUTH_TOKEN` across

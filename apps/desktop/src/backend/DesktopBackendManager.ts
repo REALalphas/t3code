@@ -10,6 +10,7 @@ import * as PlatformError from "effect/PlatformError";
 import * as Ref from "effect/Ref";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as Schema from "effect/Schema";
+import * as Schedule from "effect/Schedule";
 import * as Semaphore from "effect/Semaphore";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
@@ -71,6 +72,7 @@ export interface BackendProcessContext {
 export type DesktopBackendBootstrapDelivery = "fd3" | "stdin";
 
 export interface DesktopBackendStartConfig extends BackendProcessContext {
+  readonly external?: { readonly pid: number };
   readonly args: ReadonlyArray<string>;
   readonly env: Record<string, string | undefined>;
   /** False passes env verbatim, preventing the Windows T3CODE_HOME from leaking into WSL. */
@@ -313,6 +315,11 @@ const closeRun = (
     onSome: (fiber) => Fiber.await(fiber).pipe(Effect.asVoid),
   });
   const close = Scope.close(run.scope, Exit.void).pipe(
+    Effect.tap(() =>
+      Option.isNone(run.pid) && Option.isSome(run.fiber)
+        ? Fiber.interrupt(run.fiber.value)
+        : Effect.void,
+    ),
     Effect.withSpan("desktop.backendInstance.closeScope"),
     Effect.andThen(waitForFiber.pipe(Effect.withSpan("desktop.backendInstance.awaitRun"))),
   );
@@ -792,7 +799,7 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
           latest.preflightFailureAttempt === 0 ? latest : { ...latest, preflightFailureAttempt: 0 },
         );
 
-        if (!entryExists) {
+        if (!entryExists && !config.value.external) {
           yield* scheduleRestart(`missing server entry at ${config.value.entryPath}`);
           return;
         }
@@ -889,6 +896,11 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
 
               if (isCurrentRun && nextState.desiredRunning) {
                 if (stateDirOwned && !stopRequested) {
+                  const resolved = yield* spec.configResolve.pipe(Effect.option);
+                  if (Option.isSome(resolved) && resolved.value.external) {
+                    yield* scheduleRestart("connecting to the existing server");
+                    return;
+                  }
                   yield* SubscriptionRef.update(state, (latest) => ({
                     ...latest,
                     desiredRunning: false,
@@ -902,7 +914,7 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
           );
         });
 
-        const program = runBackendProcess({
+        const processOptions = {
           ...config.value,
           desktopTelemetryStream: desktopTelemetryPublisher.encoded,
           desktopBrowserStream: desktopBrowserHost.events,
@@ -974,7 +986,49 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
                 .slice(-STARTUP_FAILURE_OUTPUT_CHARS)
                 .toWellFormed(),
             ).pipe(Effect.andThen(backendOutputLog.writeOutputChunk(streamName, chunk))),
+        } satisfies RunBackendProcessOptions;
+        const runExternal = Effect.gen(function* () {
+          yield* waitForHttpReady({
+            ...config.value,
+            timeout: DEFAULT_BACKEND_READINESS_TIMEOUT,
+          });
+          yield* processOptions.onReady();
+          yield* Effect.sync(() => {
+            const external = config.value.external;
+            if (!external) return false;
+            try {
+              process.kill(external.pid, 0);
+              return true;
+            } catch (error) {
+              return error instanceof Error && "code" in error && error.code === "EPERM";
+            }
+          }).pipe(
+            Effect.flatMap((alive) =>
+              alive
+                ? httpClient.get(new URL(BACKEND_READINESS_PATH, config.value.httpBaseUrl)).pipe(
+                    Effect.tap((response) => response.text),
+                    Effect.timeout(DEFAULT_BACKEND_READINESS_REQUEST_TIMEOUT),
+                    Effect.map((response) => response.status === 200),
+                    Effect.orElseSucceed(() => false),
+                  )
+                : Effect.succeed(false),
+            ),
+            Effect.repeat({ schedule: Schedule.spaced("5 seconds"), while: (healthy) => healthy }),
+          );
+          return { code: Option.none<number>(), reason: "external server disconnected" };
         }).pipe(
+          Effect.catchTags({
+            BackendReadinessTimeoutError: (error) =>
+              processOptions
+                .onReadinessFailure(error)
+                .pipe(
+                  Effect.as({ code: Option.none<number>(), reason: "external server unavailable" }),
+                ),
+          }),
+        );
+        const program = (
+          config.value.external ? runExternal : runBackendProcess(processOptions)
+        ).pipe(
           Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
           Effect.provideService(HttpClient.HttpClient, httpClient),
           Scope.provide(runScope),

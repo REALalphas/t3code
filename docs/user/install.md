@@ -63,6 +63,10 @@ update it with `git pull` and a rebuild.
 
 ## Desktop app
 
+If a background server is already running with the same T3 home, the desktop app
+connects to it. Closing the app leaves that server and its agents running. Update
+both the server and desktop app to use this behavior.
+
 Download a release from [GitHub Releases](https://github.com/pingdotgg/t3code/releases),
 or use a package manager:
 

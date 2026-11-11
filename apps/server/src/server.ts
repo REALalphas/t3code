@@ -100,6 +100,9 @@ import * as EnvironmentTheme from "./environmentTheme.ts";
 import * as Keybindings from "./keybindings.ts";
 import * as ServerRuntimeStartup from "./serverRuntimeStartup.ts";
 import * as ServerOwnership from "./serverOwnership.ts";
+import { publishLocalServerBootstrap } from "@t3tools/shared/localServerBootstrap";
+import * as SecureRandom from "effect/crypto/SecureRandom";
+import * as Hex from "effect/encoding/Hex";
 import * as AgentAwarenessRelay from "./relay/AgentAwarenessRelay.ts";
 import { hasCloudPublicConfig } from "./cloud/publicConfig.ts";
 import * as ServerSettings from "./serverSettings.ts";
@@ -834,9 +837,18 @@ const layerMakeRoutes = Layer.mergeAll(
 
 const layerMakeServer = Layer.unwrap(
   Effect.gen(function* () {
-    const config = yield* ServerConfig.ServerConfig;
+    const initialConfig = yield* ServerConfig.ServerConfig;
     // Before anything opens the database: one server per T3 home.
-    const ownership = yield* ServerOwnership.acquireServerOwnership(config.serverRuntimeStatePath);
+    const ownership = yield* ServerOwnership.acquireServerOwnership(
+      initialConfig.serverRuntimeStatePath,
+    );
+    const secret =
+      initialConfig.desktopBootstrapSecret ??
+      (initialConfig.desktopBootstrapToken === undefined
+        ? Hex.encode(yield* (yield* SecureRandom.SecureRandom).randomBytes(32))
+        : undefined);
+    if (secret !== undefined) yield* publishLocalServerBootstrap(initialConfig.stateDir, secret);
+    const config = { ...initialConfig, desktopBootstrapSecret: secret };
     const activation = yield* Deferred.make<void>();
     const awaitActivation = Deferred.await(activation);
     const layerActivation = Layer.succeed(ServerActivation.ServerActivation, awaitActivation);
@@ -1206,6 +1218,7 @@ const layerMakeServer = Layer.unwrap(
       Layer.provide(VcsProcess.layer),
       Layer.provideMerge(AgentScopeLive.layer),
       Layer.provideMerge(layerPlatformServices),
+      Layer.provide(ServerConfig.layer(config)),
     );
   }),
 ).pipe(Layer.provide(ProcessRunner.layer));

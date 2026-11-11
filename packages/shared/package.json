@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./localServerBootstrap": {
+      "types": "./src/localServerBootstrap.ts",
+      "import": "./src/localServerBootstrap.ts"
+    },
     "./changedFileKind": {
       "types": "./src/changedFileKind.ts",
       "import": "./src/changedFileKind.ts"

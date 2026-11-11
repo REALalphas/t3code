@@ -28,6 +28,7 @@ import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as SynchronizedRef from "effect/SynchronizedRef";
 import { PreviewControlRequiredError } from "@t3tools/contracts";
+import * as ServerConfig from "../config.ts";
 
 export class PreviewManager extends Context.Service<
   PreviewManager,
@@ -119,6 +120,9 @@ const currentIsoTimestamp = DateTime.now.pipe(Effect.map(DateTime.formatIso));
 
 /** @public */
 export const make = Effect.gen(function* PreviewManagerMake() {
+  const config = yield* ServerConfig.ServerConfig;
+  const nativeBrowserAvailable =
+    config.desktopBrowserFd !== undefined && config.desktopBrowserControlFd !== undefined;
   const random = yield* SecureRandom.SecureRandom;
   const serverEpoch = yield* random.uuidV4();
   const stateRef = yield* SynchronizedRef.make<ManagerState>(initialState);
@@ -189,6 +193,7 @@ export const make = Effect.gen(function* PreviewManagerMake() {
         viewport: input.viewport ?? FILL_PREVIEW_VIEWPORT,
         ...(input.profileId === undefined ? {} : { profileId: input.profileId }),
         ...(runtime === undefined ? {} : { runtime }),
+        ...(runtime === "server" && !nativeBrowserAvailable ? { headless: true } : {}),
         ...(runtime === "server" && input.automationOwner !== undefined
           ? { automationOwner: input.automationOwner }
           : {}),

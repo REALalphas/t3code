@@ -15,6 +15,8 @@ import {
   type PickedThemeFile,
 } from "@t3tools/contracts";
 import { PROJECT_FAVICON_EXTENSIONS } from "@t3tools/shared/projectFavicon";
+import { currentDesktopBootstrapToken } from "@t3tools/shared/desktopBootstrapToken";
+import * as Clock from "effect/Clock";
 import { resolveEditorCommand } from "@t3tools/shared/editor";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import { isRelayTracingEnabled } from "@t3tools/shared/otelEnvironment";
@@ -166,7 +168,14 @@ export const getLocalEnvironmentBootstraps = DesktopIpc.makeSyncIpcMethod({
         wsBaseUrl: toWebSocketBaseUrl(httpBaseUrl),
         // Use the current window's derived token; the launch config's token may be stale.
         ...(bootstrap.desktopBootstrapSecret
-          ? { bootstrapToken: yield* configuration.currentBootstrapToken }
+          ? {
+              bootstrapToken: isPrimary
+                ? yield* configuration.currentBootstrapToken
+                : yield* currentDesktopBootstrapToken(
+                    bootstrap.desktopBootstrapSecret,
+                    yield* Clock.currentTimeMillis,
+                  ),
+            }
           : bootstrap.desktopBootstrapToken
             ? { bootstrapToken: bootstrap.desktopBootstrapToken }
             : {}),

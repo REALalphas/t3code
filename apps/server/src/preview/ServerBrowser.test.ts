@@ -394,7 +394,16 @@ const dependencies = Layer.mergeAll(
   }),
   PreviewAgentActivity.layer,
 ).pipe(
-  Layer.provideMerge(ServerConfig.layerTest(process.cwd(), { prefix: "t3-server-browser-" })),
+  Layer.provideMerge(
+    Layer.effect(
+      ServerConfig.ServerConfig,
+      Effect.map(ServerConfig.ServerConfig, (config) => ({
+        ...config,
+        desktopBrowserFd: 41,
+        desktopBrowserControlFd: 42,
+      })),
+    ).pipe(Layer.provide(ServerConfig.layerTest(process.cwd(), { prefix: "t3-server-browser-" }))),
+  ),
   Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
 );
 const layer = ServerBrowser.layer.pipe(Layer.provideMerge(dependencies));
@@ -606,25 +615,45 @@ it.live.each(["desktop" as const, undefined])(
     ).pipe(Effect.provide(layer)),
 );
 
-it.effect("a tab the desktop does not draw is marked headless, so the desktop streams it", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const { broker, tabId } = yield* ready;
-      const manager = yield* Manager.PreviewManager;
-      desktopRendersNext = true;
-      const desktopTab = yield* broker.invoke<PreviewAutomationStatus>({
-        scope,
-        operation: "open",
-        input: { reuseExistingTab: false, show: false },
-      });
-      const { sessions } = yield* manager.list({ threadId: scope.thread.threadId });
-      const headlessOf = (id: string | null) =>
-        sessions.find((session) => session.tabId === id)?.headless;
+it.effect.each([true, false])(
+  "a tab the desktop does not draw is marked headless, so the desktop streams it (channel %s)",
+  (available) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const { broker, tabId } = yield* ready;
+        const manager = yield* Manager.PreviewManager;
+        const desktopTab = available
+          ? yield* Effect.gen(function* () {
+              desktopRendersNext = true;
+              return yield* broker.invoke<PreviewAutomationStatus>({
+                scope,
+                operation: "open",
+                input: { reuseExistingTab: false, show: false },
+              });
+            })
+          : null;
+        const { sessions } = yield* manager.list({ threadId: scope.thread.threadId });
+        const headlessOf = (id: string | null) =>
+          sessions.find((session) => session.tabId === id)?.headless;
 
-      expect(headlessOf(tabId)).toBe(true);
-      expect(headlessOf(desktopTab.tabId)).toBeUndefined();
-    }),
-  ).pipe(Effect.provide(layer)),
+        expect(headlessOf(tabId)).toBe(true);
+        if (desktopTab) expect(headlessOf(desktopTab.tabId)).toBeUndefined();
+      }),
+    ).pipe(
+      Effect.provide(
+        ServerBrowser.layer.pipe(
+          Layer.provideMerge(
+            Layer.effect(
+              DesktopChannel.DesktopBrowserChannel,
+              Effect.map(DesktopChannel.DesktopBrowserChannel, (channel) => ({
+                ...channel,
+                available,
+              })),
+            ).pipe(Layer.provideMerge(dependencies)),
+          ),
+        ),
+      ),
+    ),
 );
 
 it.effect("a desktop page that loaded before the server attached reports its loaded title", () =>

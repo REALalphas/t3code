@@ -2,6 +2,7 @@ import * as NodeOS from "node:os";
 
 import { parsePersistedServerObservabilitySettings } from "@t3tools/shared/serverSettings";
 import { currentDesktopBootstrapToken } from "@t3tools/shared/desktopBootstrapToken";
+import { readLocalServerBootstrap } from "@t3tools/shared/localServerBootstrap";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
@@ -12,6 +13,7 @@ import * as Hex from "effect/encoding/Hex";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Path from "effect/Path";
 import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 import * as SynchronizedRef from "effect/SynchronizedRef";
@@ -730,6 +732,7 @@ export const make = Effect.gen(function* () {
   const random = yield* SecureRandom.SecureRandom;
   // Random generation yields; serialize it so concurrent backends cannot capture distinct bootstrap secrets.
   const secretRef = yield* SynchronizedRef.make(Option.none<string>());
+  const primarySecretRef = yield* SynchronizedRef.make(Option.none<string>());
   const getOrCreateBootstrapSecret = SynchronizedRef.modifyEffect(secretRef, (current) =>
     Option.match(current, {
       onSome: (secret) => Effect.succeed([secret, current] as const),
@@ -778,6 +781,45 @@ export const make = Effect.gen(function* () {
   });
 
   const buildWindowsPrimaryConfig = Effect.gen(function* () {
+    const existing = yield* readLocalServerBootstrap(environment.stateDir).pipe(
+      Effect.provideService(FileSystem.FileSystem, fileSystem),
+      Effect.provideService(Path.Path, environment.path),
+    );
+    yield* SynchronizedRef.set(
+      primarySecretRef,
+      Option.map(existing, (server) => server.secret),
+    );
+    if (Option.isSome(existing)) {
+      const server = existing.value;
+      const bootstrapToken = yield* currentDesktopBootstrapToken(
+        server.secret,
+        yield* Clock.currentTimeMillis,
+      ).pipe(Effect.provideService(Mac.Mac, mac));
+      return {
+        executablePath: process.execPath,
+        entryPath: environment.backendEntryPath,
+        args: [],
+        cwd: environment.backendCwd,
+        env: {},
+        extendEnv: false,
+        external: { pid: server.pid },
+        bootstrap: {
+          mode: "desktop",
+          noBrowser: true,
+          port: Number(server.httpBaseUrl.port),
+          host: server.httpBaseUrl.hostname,
+          t3Home: environment.baseDir,
+          desktopBootstrapSecret: server.secret,
+          desktopBootstrapToken: bootstrapToken,
+          tailscaleServeEnabled: false,
+          tailscaleServePort: 443,
+        },
+        bootstrapDelivery: "fd3",
+        httpBaseUrl: server.httpBaseUrl,
+        captureOutput: false,
+        preflightFailure: Option.none(),
+      } satisfies DesktopBackendManager.DesktopBackendStartConfig;
+    }
     const shared = yield* sharedInputs;
     const resourceMonitorPath = yield* resolveResourceMonitorPath().pipe(
       Effect.provideService(FileSystem.FileSystem, fileSystem),
@@ -809,7 +851,8 @@ export const make = Effect.gen(function* () {
   });
 
   const currentBootstrapToken = Effect.gen(function* () {
-    const secret = yield* getOrCreateBootstrapSecret;
+    const external = yield* SynchronizedRef.get(primarySecretRef);
+    const secret = Option.isSome(external) ? external.value : yield* getOrCreateBootstrapSecret;
     return yield* currentDesktopBootstrapToken(secret, yield* Clock.currentTimeMillis).pipe(
       Effect.provideService(Mac.Mac, mac),
     );
@@ -820,6 +863,7 @@ export const make = Effect.gen(function* () {
     resolvePrimary: Effect.gen(function* () {
       const { useWsl, wslRequested } = yield* describePrimary;
       if (useWsl) {
+        yield* SynchronizedRef.set(primarySecretRef, Option.none());
         return yield* buildWslPrimaryConfig;
       }
       if (wslRequested) {

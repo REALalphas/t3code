@@ -193,6 +193,46 @@ function makeTestInstance(input: MakeInstanceInput) {
 }
 
 describe("DesktopBackendManager", () => {
+  it.effect("attaches to an external server without spawning or stopping it", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        let starts = 0;
+        let stops = 0;
+        const instance = yield* makeTestInstance({
+          config: { ...baseConfig, external: { pid: process.ppid } },
+          spawnerLayer: Layer.succeed(
+            ChildProcessSpawner.ChildProcessSpawner,
+            ChildProcessSpawner.make(() =>
+              Effect.sync(() => {
+                starts += 1;
+                return makeProcess({
+                  exitCode: Effect.never,
+                  kill: () =>
+                    Effect.sync(() => {
+                      stops += 1;
+                    }),
+                });
+              }),
+            ),
+          ),
+        });
+        yield* instance.start;
+        assert.isTrue(yield* instance.waitForReady(Duration.infinity));
+        assert.equal(starts, 0);
+        assert.isTrue(Option.isNone((yield* instance.snapshot).activePid));
+
+        yield* instance.stop();
+        assert.equal(stops, 0);
+        assert.isFalse((yield* instance.snapshot).ready);
+
+        yield* instance.start;
+        assert.isTrue(yield* instance.waitForReady(Duration.infinity));
+        assert.equal(starts, 0);
+        yield* instance.stop();
+      }),
+    ),
+  );
+
   it.effect("notifies readiness waiters on HTTP readiness and stop without clock advancement", () =>
     Effect.scoped(
       Effect.gen(function* () {

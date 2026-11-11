@@ -1,5 +1,8 @@
 import { assert, describe, it } from "@effect/vitest";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
+import { currentDesktopBootstrapToken } from "@t3tools/shared/desktopBootstrapToken";
+import * as Clock from "effect/Clock";
 import type { ManagedPolicyLimits } from "@t3tools/contracts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import { ManagedPolicyFileError } from "@t3tools/shared/managedPolicyFile";
@@ -87,7 +90,11 @@ const backendConfigurationLayer = Layer.succeed(
 );
 
 const bootstrapsLayer = (instances: ReadonlyArray<DesktopBackendManager.DesktopBackendInstance>) =>
-  Layer.merge(DesktopBackendPool.layerTest([...instances]), backendConfigurationLayer);
+  Layer.mergeAll(
+    DesktopBackendPool.layerTest([...instances]),
+    backendConfigurationLayer,
+    NodeCrypto.layerMac,
+  );
 
 describe("getLocalEnvironmentBootstraps", () => {
   it.effect("hands out the current window's token to a backend launched with the secret", () =>
@@ -101,7 +108,10 @@ describe("getLocalEnvironmentBootstraps", () => {
           runningDistro: "Ubuntu",
           httpBaseUrl: "http://127.0.0.1:3774/",
           wsBaseUrl: "ws://127.0.0.1:3774/",
-          bootstrapToken: "current-window-token",
+          bootstrapToken: yield* currentDesktopBootstrapToken(
+            "desktop-secret",
+            yield* Clock.currentTimeMillis,
+          ).pipe(Effect.provide(NodeCrypto.layerMac)),
         },
       ]);
     }).pipe(

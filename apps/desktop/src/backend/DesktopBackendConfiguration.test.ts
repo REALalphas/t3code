@@ -217,6 +217,34 @@ const withPackagedWslHarness = <A, E, R>(
   }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)));
 
 describe("DesktopBackendConfiguration", () => {
+  it.effect("connects to the server already using this T3 home", () =>
+    withHarness(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const environment = yield* DesktopEnvironment.DesktopEnvironment;
+        const configuration = yield* DesktopBackendConfiguration.DesktopBackendConfiguration;
+        const secret = "existing-server-secret-0123456789abcdef";
+        yield* fs.makeDirectory(environment.stateDir, { recursive: true });
+        yield* fs.writeFileString(
+          environment.path.join(environment.stateDir, "server-runtime.json"),
+          JSON.stringify({ version: 1, pid: process.ppid, origin: "http://127.0.0.1:18789" }),
+        );
+        yield* fs.writeFileString(
+          environment.path.join(environment.stateDir, "desktop-bootstrap.json"),
+          JSON.stringify({ version: 1, pid: process.ppid, secret }),
+        );
+
+        const config = yield* configuration.resolvePrimary;
+        assert.equal(config.httpBaseUrl.href, "http://127.0.0.1:18789/");
+        assert.equal(config.bootstrap.desktopBootstrapSecret, secret);
+        assert.equal(
+          yield* configuration.currentBootstrapToken,
+          yield* currentDesktopBootstrapToken(secret, yield* Clock.currentTimeMillis),
+        );
+      }),
+    ),
+  );
+
   it.effect("resolvePrimary produces a stable scoped bootstrap token", () =>
     withHarness(
       Effect.gen(function* () {

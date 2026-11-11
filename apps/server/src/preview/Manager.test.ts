@@ -37,26 +37,34 @@ const layer = PreviewManager.layer.pipe(
 );
 
 it.layer(layer)("PreviewManager", (it) => {
-  it.effect("opens a session and emits opened with normalized URL", () =>
-    Effect.gen(function* () {
-      const threadId = freshThreadId();
-      const manager = yield* PreviewManager.PreviewManager;
-      const collector = yield* collectEvents;
+  it.effect.each([undefined, "server"] as const)(
+    "opens a session and emits opened with normalized URL (%s)",
+    (runtime) =>
+      Effect.gen(function* () {
+        const threadId = freshThreadId();
+        const manager = yield* PreviewManager.PreviewManager;
+        const collector = yield* collectEvents;
 
-      const snapshot = yield* manager.open({ threadId, url: "localhost:5173" });
-      expect(snapshot.tabId.startsWith("tab_")).toBe(true);
-      expect(snapshot.navStatus._tag).toBe("Loading");
-      if (snapshot.navStatus._tag === "Loading") {
-        expect(snapshot.navStatus.url).toBe("http://localhost:5173/");
-      }
+        const snapshot = yield* manager.open({
+          threadId,
+          url: "localhost:5173",
+          ...(runtime ? { runtime } : {}),
+        });
+        expect(snapshot.headless).toBe(runtime === "server" ? true : undefined);
+        expect(snapshot.tabId.startsWith("tab_")).toBe(true);
+        expect(snapshot.navStatus._tag).toBe("Loading");
+        if (snapshot.navStatus._tag === "Loading") {
+          expect(snapshot.navStatus.url).toBe("http://localhost:5173/");
+        }
 
-      const events = yield* collector.drain;
-      expect(events).toHaveLength(1);
-      expect(events[0]?.type).toBe("opened");
-      if (events[0]?.type === "opened") {
-        expect(events[0].tabId).toBe(snapshot.tabId);
-      }
-    }),
+        const events = yield* collector.drain;
+        expect(events).toHaveLength(1);
+        expect(events[0]?.type).toBe("opened");
+        if (events[0]?.type === "opened") {
+          expect(events[0].tabId).toBe(snapshot.tabId);
+          expect(events[0].snapshot.headless).toBe(snapshot.headless);
+        }
+      }),
   );
 
   it.effect("keeps the tab's profile across status reports", () =>
