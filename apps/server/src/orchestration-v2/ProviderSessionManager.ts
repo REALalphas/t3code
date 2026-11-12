@@ -1190,7 +1190,7 @@ export const layerWithOptions = (
                 pinnedForMs: now - pinnedSinceMs,
               });
               // Recheck on this fiber; scheduleIdleReleaseInternal would interrupt it and self-deadlock.
-              yield* Effect.sleep(Duration.millis(idleTimeoutMs));
+              yield* Effect.sleep(Duration.millis(sessionIdleTimeout(entry)));
               return yield* releaseIfStillIdle(input);
             }
             yield* Effect.logWarning("orchestration-v2.driver-session.idle-release-pin-expired", {
@@ -1214,6 +1214,9 @@ export const layerWithOptions = (
           );
         },
       );
+
+      const sessionIdleTimeout = (entry: LiveSessionEntry) =>
+        Math.max(1, Math.min(idleTimeoutMs, entry.runtime.idleTimeoutMs ?? idleTimeoutMs));
 
       const withActivityError = <A, E, R>(
         providerSessionId: ProviderSessionId,
@@ -1247,7 +1250,7 @@ export const layerWithOptions = (
 
         yield* cancelIdleFiber(entry.idleFiber);
         const generation = entry.idleGeneration + 1;
-        const idleFiber = yield* Effect.sleep(Duration.millis(idleTimeoutMs)).pipe(
+        const idleFiber = yield* Effect.sleep(Duration.millis(sessionIdleTimeout(entry))).pipe(
           Effect.andThen(releaseIfStillIdle({ providerSessionId, generation })),
           Effect.forkIn(layerScope),
         );

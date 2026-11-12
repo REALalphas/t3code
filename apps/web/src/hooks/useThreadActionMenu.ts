@@ -1,3 +1,4 @@
+import { useRegenerateProjectIcon } from "./useRegenerateProjectIcon";
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import { requestCustomSnooze } from "../components/CustomSnoozeDialog";
 import { openGuestShareDialog } from "../components/chat/guestShareDialogState";
@@ -66,6 +67,7 @@ export function useThreadActionMenu(input: {
   readonly canShareWithGuest: boolean;
 }) {
   const { threadRef, projectCwd, onStartRename, onFind, canShareWithGuest } = input;
+  const regenerateProjectIcon = useRegenerateProjectIcon();
   const router = useRouter();
   const projects = useProjects();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
@@ -246,6 +248,9 @@ export function useThreadActionMenu(input: {
           return;
         case "rename":
           onStartRename();
+          return;
+        case "regenerate-icon":
+          await regenerateProjectIcon(scopeProjectRef(threadRef.environmentId, thread.projectId));
           return;
         case "regenerate-title":
           if (isRegeneratingTitle) return;

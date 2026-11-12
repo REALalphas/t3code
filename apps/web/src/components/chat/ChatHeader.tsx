@@ -1,3 +1,4 @@
+import { useRegenerateProjectIcon } from "../../hooks/useRegenerateProjectIcon";
 import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,
@@ -249,6 +250,38 @@ export const ChatHeader = memo(function ChatHeader({
     closeMenu();
     startRename();
   };
+  const regenerateProjectIcon = useRegenerateProjectIcon();
+  const handleProjectContextMenu = (event: ReactMouseEvent) => {
+    if (!activeProject) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const api = readLocalApi();
+    if (!api) return;
+    void api.contextMenu
+      .show(
+        [
+          {
+            id: "regenerate-icon",
+            label: "Regenerate icon",
+            icon: "refresh-cw",
+            disabled: !readEnvironmentScope(
+              activeProject.environmentId,
+              AuthOrchestrationOperateScope,
+            ),
+          },
+          { id: "project-settings", label: "Project settings", icon: "settings" },
+        ],
+        { x: event.clientX, y: event.clientY },
+      )
+      .then((action) => {
+        if (action === "regenerate-icon")
+          void regenerateProjectIcon({
+            environmentId: activeProject.environmentId,
+            projectId: activeProject.id,
+          });
+        if (action === "project-settings") onOpenProjectSettings?.();
+      });
+  };
   const handleHeaderContextMenu = (event: ReactMouseEvent) => {
     if (renamingTitle !== null) return;
     if (!isServerThread && onOpenProjectSettings === undefined) return;
@@ -302,6 +335,7 @@ export const ChatHeader = memo(function ChatHeader({
                       type="button"
                       aria-label={`New thread in ${activeProjectName}`}
                       onClick={onNewThreadInProject}
+                      onContextMenu={handleProjectContextMenu}
                       className="inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1.5 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                     />
                   }

@@ -20,6 +20,7 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as P from "effect/Predicate";
+import type * as PlatformError from "effect/PlatformError";
 import * as Ref from "effect/Ref";
 import * as Result from "effect/Result";
 import * as Scope from "effect/Scope";
@@ -89,14 +90,14 @@ export interface OpenCodeServerProcess {
   readonly serverPassword?: string;
   readonly version: string;
   readonly isRunning: Effect.Effect<boolean>;
-  readonly exitCode: Effect.Effect<number, never>;
+  readonly exitCode: Effect.Effect<number | string>;
 }
 
 export interface OpenCodeServerConnection {
   readonly url: string;
   readonly serverPassword?: string;
   readonly version: string;
-  readonly exitCode: Effect.Effect<number, never> | null;
+  readonly exitCode: Effect.Effect<number | string> | null;
   readonly external: boolean;
 }
 
@@ -149,6 +150,24 @@ export function openCodeRuntimeErrorDetail(cause: unknown): string {
   }
   return String(cause);
 }
+
+export const readOpenCodeExitStatus = (
+  exitCode: Effect.Effect<number, PlatformError.PlatformError>,
+) =>
+  exitCode.pipe(
+    Effect.catch((cause) => {
+      const reason = cause.reason;
+      const signal =
+        reason.module === "ChildProcess" &&
+        reason.method === "exitCode" &&
+        reason.cause instanceof Error
+          ? /^Process interrupted due to receipt of signal: '(SIG[A-Z0-9]{1,16})'$/.exec(
+              reason.cause.message,
+            )?.[1]
+          : undefined;
+      return Effect.succeed(signal ?? "unknown");
+    }),
+  );
 
 export const runOpenCodeSdk = <A>(
   operation: string,
@@ -613,7 +632,8 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
       Effect.forkIn(runtimeScope),
     );
 
-    const exitFiber = yield* child.exitCode.pipe(
+    const exitStatus = readOpenCodeExitStatus(child.exitCode);
+    const exitFiber = yield* exitStatus.pipe(
       Effect.flatMap((code) =>
         Effect.gen(function* () {
           // Allow trailing diagnostics to drain, but descendants can keep pipes open.
@@ -625,7 +645,7 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
           }
           const stdout = (yield* Ref.get(stdoutRef)) ?? "";
           const stderr = (yield* Ref.get(stderrRef)) ?? "";
-          const exitCode = Number(code);
+          const exitCode = code;
           const reason = classifyStartupExit(stderr);
           yield* Deferred.fail(
             readyDeferred,
@@ -696,10 +716,7 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
       ...(serverPassword !== undefined ? { serverPassword } : {}),
       version,
       isRunning: child.isRunning.pipe(Effect.orElseSucceed(() => false)),
-      exitCode: child.exitCode.pipe(
-        Effect.map(Number),
-        Effect.orElseSucceed(() => 0),
-      ),
+      exitCode: exitStatus,
     } satisfies OpenCodeServerProcess;
   });
 

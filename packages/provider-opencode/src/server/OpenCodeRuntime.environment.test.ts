@@ -1,9 +1,30 @@
 import type { OpencodeClient } from "@opencode-ai/sdk/v2";
 import { it as effectIt } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as PlatformError from "effect/PlatformError";
 import { describe, expect, it } from "vite-plus/test";
 
 import * as OpenCodeRuntime from "./OpenCodeRuntime.ts";
+
+effectIt.effect.each(["SIGKILL", "SIGTERM", "unknown"])(
+  "preserves abnormal OpenCode process termination: %s",
+  (signal) =>
+    Effect.gen(function* () {
+      const error = PlatformError.systemError({
+        _tag: "Unknown",
+        module: "ChildProcess",
+        method: "exitCode",
+        cause: new Error(
+          signal === "unknown"
+            ? "unavailable"
+            : `Process interrupted due to receipt of signal: '${signal}'`,
+        ),
+      });
+      expect(yield* OpenCodeRuntime.readOpenCodeExitStatus(Effect.fail(error))).toBe(signal);
+      expect(yield* OpenCodeRuntime.readOpenCodeExitStatus(Effect.succeed(0))).toBe(0);
+      expect(yield* OpenCodeRuntime.readOpenCodeExitStatus(Effect.succeed(137))).toBe(137);
+    }),
+);
 
 describe("resolveOpenCodeServerPassword", () => {
   it("uses the settings password when local settings and environment differ", () => {

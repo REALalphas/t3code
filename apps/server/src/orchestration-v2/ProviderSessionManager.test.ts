@@ -421,6 +421,7 @@ function unimplemented(detail: string) {
 const makeProviderAdapter = Effect.fnUntraced(function* (
   state: Ref.Ref<TestProviderRuntimeState>,
   options: {
+    readonly runtimeIdleTimeoutMs?: number | undefined;
     readonly failEventStream?: boolean;
     readonly capabilities?: OrchestrationV2ProviderCapabilities;
     readonly extensionStatuses?: OrchestrationV2ProviderSession["extensionStatuses"];
@@ -507,6 +508,9 @@ const makeProviderAdapter = Effect.fnUntraced(function* (
         return {
           instanceId: ProviderInstanceId.make("codex"),
           driver: CODEX_DRIVER,
+          ...(options.runtimeIdleTimeoutMs === undefined
+            ? {}
+            : { idleTimeoutMs: options.runtimeIdleTimeoutMs }),
           providerSessionId: input.providerSessionId,
           get providerSession() {
             return session;
@@ -574,6 +578,7 @@ const makeProviderAdapter = Effect.fnUntraced(function* (
 function layerTest(input: {
   readonly state: Ref.Ref<TestProviderRuntimeState>;
   readonly idleTimeoutMs: number;
+  readonly runtimeIdleTimeoutMs?: number | undefined;
   readonly maxIdlePinMs?: number;
   readonly failEventStream?: boolean;
   readonly capabilities?: OrchestrationV2ProviderCapabilities;
@@ -617,6 +622,7 @@ function layerTest(input: {
             : layerTestEventSink;
   const layerRegistry = Layer.unwrap(
     makeProviderAdapter(input.state, {
+      runtimeIdleTimeoutMs: input.runtimeIdleTimeoutMs,
       failEventStream: input.failEventStream ?? false,
       ...(input.capabilities === undefined ? {} : { capabilities: input.capabilities }),
       ...(input.extensionStatuses === undefined
@@ -1796,9 +1802,13 @@ it.effect(
     }),
 );
 
-it.effect.each(["session metadata", "session status changes", "provider work"] as const)(
-  "ProviderSessionManagerV2 expires idle sessions according to %s",
-  (activity) =>
+it.effect.each(
+  (["session metadata", "session status changes", "provider work"] as const).flatMap((activity) =>
+    [false, true].map((runtimeTimeout) => ({ activity, runtimeTimeout })),
+  ),
+)(
+  "ProviderSessionManagerV2 expires idle sessions according to $activity with runtime timeout=$runtimeTimeout",
+  ({ activity, runtimeTimeout }) =>
     Effect.gen(function* () {
       const state = yield* Ref.make(emptyState);
       yield* Effect.gen(function* () {
@@ -1907,7 +1917,15 @@ it.effect.each(["session metadata", "session status changes", "provider work"] a
           [],
         );
         assert.equal((yield* Ref.get(state)).closeCount, 1);
-      }).pipe(Effect.provide(layerTest({ state, idleTimeoutMs: 1_000 })));
+      }).pipe(
+        Effect.provide(
+          layerTest({
+            state,
+            idleTimeoutMs: runtimeTimeout ? 60_000 : 1_000,
+            runtimeIdleTimeoutMs: runtimeTimeout ? 1_000 : undefined,
+          }),
+        ),
+      );
     }),
 );
 
@@ -3001,7 +3019,8 @@ it.effect(
         Effect.provide(
           layerTest({
             state,
-            idleTimeoutMs: 1000,
+            idleTimeoutMs: 60_000,
+            runtimeIdleTimeoutMs: 1000,
             hasPendingBackgroundWork: Effect.uninterruptible(
               Effect.gen(function* () {
                 if (yield* Ref.getAndSet(firstCheck, false)) {

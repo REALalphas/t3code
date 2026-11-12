@@ -34,6 +34,9 @@ function recordEffect(action: string) {
   state.completed.resolve();
 }
 
+vi.mock("./useRegenerateProjectIcon", () => ({
+  useRegenerateProjectIcon: () => async () => recordEffect("regenerate-icon"),
+}));
 vi.mock("../components/CustomSnoozeDialog", () => ({ requestCustomSnooze: vi.fn() }));
 vi.mock("react", () => ({
   useCallback: (callback: unknown) => callback,

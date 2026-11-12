@@ -2499,6 +2499,60 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
     }),
   );
 
+  it.effect(
+    "finalizes completed turns before admitting more threads without reordering a thread",
+    () =>
+      Effect.gen(function* () {
+        const outbox = yield* EffectOutbox.EffectOutboxV2;
+        const commandId = CommandId.make("command:finalization-priority");
+        const startingThread = ThreadId.make("thread:starting");
+        const completedThread = ThreadId.make("thread:completed");
+        const runId = RunId.make("run:finalization-priority");
+        const scopeId = CheckpointScopeId.make("scope:finalization-priority");
+        yield* outbox.enqueue([
+          {
+            id: "start",
+            commandId,
+            threadId: startingThread,
+            request: { type: "provider-turn.start", runId },
+          },
+          {
+            id: "blocked-capture",
+            commandId,
+            threadId: startingThread,
+            request: { type: "checkpoint.capture", runId, scopeId },
+          },
+          {
+            id: "cleanup",
+            commandId,
+            threadId: ThreadId.make("thread:cleanup"),
+            request: { type: "terminal.cleanup" },
+          },
+        ]);
+        yield* TestClock.adjust("1 second");
+        yield* outbox.enqueue([
+          {
+            id: "ready-capture",
+            commandId,
+            threadId: completedThread,
+            request: { type: "checkpoint.capture", runId, scopeId },
+          },
+        ]);
+
+        const claim = (workerId: string) =>
+          outbox.claimNext({ workerId }).pipe(Effect.map(Option.getOrThrow));
+        assert.equal((yield* claim("cleanup-worker")).id, "cleanup");
+        yield* outbox.succeed({ effectId: "cleanup", workerId: "cleanup-worker" });
+        assert.equal((yield* claim("finalizer")).id, "ready-capture");
+        assert.equal((yield* claim("starter")).id, "start");
+        assert.isTrue(Option.isNone(yield* outbox.claimNext({ workerId: "blocked" })));
+        yield* outbox.succeed({ effectId: "start", workerId: "starter" });
+        assert.equal((yield* claim("finalizer-next")).id, "blocked-capture");
+        yield* outbox.succeed({ effectId: "ready-capture", workerId: "finalizer" });
+        yield* outbox.succeed({ effectId: "blocked-capture", workerId: "finalizer-next" });
+      }),
+  );
+
   it.effect("wakes a settle waiter when its effect finishes", () =>
     Effect.gen(function* () {
       const outbox = yield* EffectOutbox.EffectOutboxV2;

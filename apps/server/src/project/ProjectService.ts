@@ -4,14 +4,18 @@ import {
   ProjectId,
   type Project,
   type ProjectCreatePayload,
+  type ProjectIconColor,
+  type ProjectIconOverride,
   type ProjectUpdatePayload,
   type ProjectSnapshot,
   type ThreadId,
 } from "@t3tools/contracts";
+import { resolveProjectIconModelSelection } from "@t3tools/shared/serverSettings";
 import * as KeyedLock from "@t3tools/shared/KeyedLock";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Result from "effect/Result";
@@ -32,8 +36,18 @@ import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import * as ThreadCommandExecutor from "../orchestration-v2/ThreadCommandExecutor.ts";
 import { planThreadDeletion } from "../orchestration-v2/ThreadDeletion.ts";
 import * as ServerSettings from "../serverSettings.ts";
+import * as TextGeneration from "../textGeneration/TextGeneration.ts";
 import * as ProjectEnrichmentService from "./ProjectEnrichmentService.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
+
+const PROJECT_ICON_EXCERPT_CHARS = 2000;
+const PROJECT_ICON_MAX_TOP_LEVEL_ENTRIES = 60;
+const PROJECT_ICON_IGNORED_ENTRIES: ReadonlySet<string> = new Set([
+  ".git",
+  "node_modules",
+  ".t3",
+  ".DS_Store",
+]);
 
 export interface ProjectCreateInput extends ProjectCreatePayload {
   readonly commandId: CommandId;
@@ -104,6 +118,7 @@ export class ProjectOperationError extends Schema.TaggedError<ProjectOperationEr
       "list-threads",
       "delete-thread",
       "dispatch-project-command",
+      "generate-project-icon",
     ]),
     projectId: Schema.optional(ProjectId),
     workspaceRoot: Schema.optional(Schema.String),
@@ -173,6 +188,8 @@ export const make = Effect.gen(function* () {
   const legacyImporter = yield* LegacyV1ThreadImporter.LegacyV1ThreadImporter;
   const threadCommands = yield* ThreadCommandExecutor.ThreadCommandExecutor;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
+  const fileSystem = yield* FileSystem.FileSystem;
+  const textGeneration = yield* Effect.serviceOption(TextGeneration.TextGeneration);
   const projectLocks = yield* KeyedLock.make<ProjectId>();
   const workspaceLocks = yield* KeyedLock.make<string>();
 
@@ -234,6 +251,83 @@ export const make = Effect.gen(function* () {
             }),
         ),
       );
+
+  const readProjectIconContext = Effect.fn("ProjectService.readProjectIconContext")(function* (
+    workspaceRoot: string,
+  ) {
+    const readExcerpt = (fileName: string) =>
+      fileSystem.readFileString(`${workspaceRoot}/${fileName}`, "utf8").pipe(
+        Effect.orElseSucceed(() => null),
+        Effect.map((content) => {
+          if (content === null) return undefined;
+          const trimmed = content.trim().slice(0, PROJECT_ICON_EXCERPT_CHARS);
+          return trimmed.length === 0 ? undefined : trimmed;
+        }),
+      );
+    const topLevelEntries = yield* fileSystem.readDirectory(workspaceRoot).pipe(
+      Effect.orElseSucceed((): ReadonlyArray<string> => []),
+      Effect.map((entries) =>
+        entries
+          .filter((entry) => !PROJECT_ICON_IGNORED_ENTRIES.has(entry))
+          .slice(0, PROJECT_ICON_MAX_TOP_LEVEL_ENTRIES),
+      ),
+    );
+    const readmeExcerpt = (yield* readExcerpt("README.md")) ?? (yield* readExcerpt("readme.md"));
+    const packageJsonExcerpt = yield* readExcerpt("package.json");
+    return {
+      topLevelEntries,
+      ...(readmeExcerpt === undefined ? {} : { readmeExcerpt }),
+      ...(packageJsonExcerpt === undefined ? {} : { packageJsonExcerpt }),
+    };
+  });
+
+  const generateProjectIcon = Effect.fn("ProjectService.generateProjectIcon")(function* (input: {
+    readonly projectId: ProjectId;
+    readonly title: string;
+    readonly workspaceRoot: string;
+  }) {
+    if (Option.isNone(textGeneration)) {
+      return yield* new ProjectOperationError({
+        operation: "generate-project-icon",
+        projectId: input.projectId,
+        cause: "Text generation is not available in this runtime.",
+      });
+    }
+    const settings = yield* serverSettings.getSettings.pipe(
+      Effect.mapError(
+        (cause) =>
+          new ProjectOperationError({
+            operation: "generate-project-icon",
+            projectId: input.projectId,
+            cause,
+          }),
+      ),
+    );
+    const context = yield* readProjectIconContext(input.workspaceRoot);
+    const result = yield* textGeneration.value
+      .generateProjectIcon({
+        cwd: input.workspaceRoot,
+        projectTitle: input.title,
+        threadTitles: [],
+        ...context,
+        modelSelection: resolveProjectIconModelSelection(settings, undefined, input.projectId),
+      })
+      .pipe(
+        Effect.mapError(
+          (cause) =>
+            new ProjectOperationError({
+              operation: "generate-project-icon",
+              projectId: input.projectId,
+              cause,
+            }),
+        ),
+      );
+    return {
+      kind: "lucide",
+      name: result.name,
+      color: result.color as ProjectIconColor,
+    } satisfies ProjectIconOverride;
+  });
 
   const commit = Effect.fn("ProjectService.commit")(function* (command: ProjectCommand) {
     const { projectId } = command;
@@ -385,6 +479,15 @@ export const make = Effect.gen(function* () {
               projectId: input.projectId,
               workspaceRoot: input.workspaceRoot,
             });
+      const regenerateIcon = input.regenerateIcon === true;
+      const projectIcon = regenerateIcon
+        ? yield* generateProjectIcon({
+            projectId: input.projectId,
+            title: input.title ?? existing.value.title,
+            workspaceRoot,
+          })
+        : input.projectIcon;
+      const faviconPath = regenerateIcon ? null : input.faviconPath;
       yield* commit({
         type: "project.meta.update",
         commandId: input.commandId,
@@ -395,8 +498,8 @@ export const make = Effect.gen(function* () {
           ? {}
           : { defaultModelSelection: input.defaultModelSelection }),
         ...(input.autoPull === undefined ? {} : { autoPull: input.autoPull }),
-        ...(input.projectIcon === undefined ? {} : { projectIcon: input.projectIcon }),
-        ...(input.faviconPath === undefined ? {} : { faviconPath: input.faviconPath }),
+        ...(projectIcon === undefined ? {} : { projectIcon }),
+        ...(faviconPath === undefined ? {} : { faviconPath }),
         ...(input.defaultThreadEnvMode === undefined
           ? {}
           : { defaultThreadEnvMode: input.defaultThreadEnvMode }),

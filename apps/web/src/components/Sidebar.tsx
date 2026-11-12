@@ -1,3 +1,4 @@
+import { useRegenerateProjectIcon } from "../hooks/useRegenerateProjectIcon";
 import { attachSidebarTree } from "../lib/sidebarTree";
 import { type EnvironmentId, type ScopedProjectRef } from "@t3tools/contracts";
 import type { EnvironmentServerConfig } from "@t3tools/client-runtime/connection";
@@ -1249,6 +1250,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     if (isMobile) setOpenMobile(false);
     void handleNewThread(scopeProjectRef(group.environmentId, group.id));
   });
+  const regenerateProjectIcon = useRegenerateProjectIcon();
   const handleProjectFolderContextMenu = useStableCallback(
     (group: SidebarProjectSnapshot, position: { x: number; y: number }) => {
       const api = readLocalApi();
@@ -1266,6 +1268,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                       : { id: "pin", label: "Pin project", icon: "pin" },
                   ]
                 : []),
+              {
+                id: "regenerate-icon",
+                label: "Regenerate icon",
+                icon: "refresh-cw",
+                disabled: !readEnvironmentScope(group.environmentId, AuthOrchestrationOperateScope),
+              },
               { id: "project-settings", label: "Project settings", icon: "settings" },
             ],
             position,
@@ -1273,6 +1281,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         );
         if (clicked._tag === "Failure") return;
         switch (clicked.value) {
+          case "regenerate-icon":
+            await regenerateProjectIcon(scopeProjectRef(group.environmentId, group.id));
+            return;
           case "new-thread":
             startThreadInProjectFolder(group);
             return;
@@ -2763,6 +2774,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             return;
           case "share-guest":
             openGuestShareDialog(threadRef);
+            return;
+          case "regenerate-icon":
+            await regenerateProjectIcon(scopeProjectRef(threadRef.environmentId, thread.projectId));
             return;
           case "regenerate-title": {
             if (isRegeneratingTitle) return;

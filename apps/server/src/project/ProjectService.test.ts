@@ -2,10 +2,17 @@ import * as Arr from "effect/Array";
 import * as Context from "effect/Context";
 import * as Queue from "effect/Queue";
 import * as Tracer from "effect/Tracer";
-import { assert, it } from "@effect/vitest";
+import { assert, it, vi } from "@effect/vitest";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { CommandId, type Project, ProjectId, ProviderInstanceId } from "@t3tools/contracts";
+import {
+  CommandId,
+  type Project,
+  ProjectId,
+  ProviderInstanceId,
+  TextGenerationError,
+} from "@t3tools/contracts";
+import { resolveProjectIconModelSelection } from "@t3tools/shared/serverSettings";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -31,6 +38,7 @@ import * as RuntimeLayer from "../orchestration-v2/runtimeLayer.ts";
 import * as ThreadCommandExecutor from "../orchestration-v2/ThreadCommandExecutor.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ServerSettings from "../serverSettings.ts";
+import * as TextGeneration from "../textGeneration/TextGeneration.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 import * as ProjectEnrichmentService from "./ProjectEnrichmentService.ts";
 import * as ProjectFaviconResolver from "./ProjectFaviconResolver.ts";
@@ -91,16 +99,26 @@ const layerEnrichmentCompletions = Layer.effectContext(
   }),
 );
 
+const layerTextGeneration = (
+  generateProjectIcon: TextGeneration.TextGeneration["Service"]["generateProjectIcon"],
+) => Layer.mock(TextGeneration.TextGeneration)({ generateProjectIcon });
+
+const layerDefaultTextGeneration = layerTextGeneration(() =>
+  Effect.succeed({ name: "folder-code", color: "blue" }),
+);
+
 const layerTestFor = (
   projectMetadataLayer: Layer.Layer<
     | ProjectFaviconResolver.ProjectFaviconResolver
     | RepositoryIdentityResolver.RepositoryIdentityResolver
   >,
+  textGenerationLayer = layerDefaultTextGeneration,
 ) =>
   RuntimeLayer.layerProjectService.pipe(
     Layer.provideMerge(ProjectEnrichmentService.layer),
     Layer.provideMerge(layerWorkspacePaths),
     Layer.provideMerge(projectMetadataLayer),
+    Layer.provideMerge(textGenerationLayer),
     Layer.provideMerge(SqlitePersistence.layerMemory),
     Layer.provideMerge(ServerSettings.layerTest()),
     Layer.provide(ServerConfig.layerTest(process.cwd(), { prefix: "project-service-test-" })),
@@ -203,10 +221,11 @@ const layerProjectServiceDependencies = Layer.mergeAll(
   Layer.provideMerge(ProjectEnrichmentService.layer),
   Layer.provideMerge(layerWorkspacePaths),
   Layer.provideMerge(layerMetadata),
+  Layer.provideMerge(layerDefaultTextGeneration),
   Layer.provideMerge(SqlitePersistence.layerMemory),
   Layer.provideMerge(ServerSettings.layerTest()),
   Layer.provide(ServerConfig.layerTest(process.cwd(), { prefix: "project-service-race-" })),
-  Layer.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
+  Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
 );
 
 const waitForProject = Effect.fn("ProjectServiceTest.waitForProject")(function* (
@@ -613,6 +632,100 @@ it.layer(layerTest)("ProjectService", (it) => {
       assert.equal((yield* service.create(input)).id, projectId);
     }),
   );
+});
+
+it.effect("regenerates the project icon on request even when one already exists", () => {
+  const generateProjectIcon = vi.fn<
+    TextGeneration.TextGeneration["Service"]["generateProjectIcon"]
+  >(() => Effect.succeed({ name: "rocket", color: "red" }));
+  return Effect.gen(function* () {
+    const service = yield* ProjectService.ProjectService;
+    const settings = yield* ServerSettings.ServerSettingsService;
+    const sql = yield* SqlClient.SqlClient;
+    const projectId = ProjectId.make("project:regenerate-icon");
+    yield* service.create({
+      commandId: CommandId.make("command:regenerate-icon:create"),
+      projectId,
+      title: "Regenerate",
+      workspaceRoot: "/work/regenerate",
+    });
+    const before = yield* service.update({
+      commandId: CommandId.make("command:regenerate-icon:set-icon"),
+      projectId,
+      projectIcon: { kind: "emoji", emoji: "🦊" },
+      faviconPath: "/work/regenerate/custom.svg",
+    });
+    const updated = yield* service.update({
+      commandId: CommandId.make("command:regenerate-icon:regenerate"),
+      projectId,
+      regenerateIcon: true,
+    });
+
+    assert.deepEqual(updated.projectIcon, { kind: "lucide", name: "rocket", color: "red" });
+    assert.equal(generateProjectIcon.mock.calls.length, 1);
+    const call = generateProjectIcon.mock.calls[0]?.[0];
+    assert.equal(call?.cwd, "/work/regenerate");
+    assert.equal(call?.projectTitle, "Regenerate");
+    assert.deepEqual(
+      call?.modelSelection,
+      resolveProjectIconModelSelection(yield* settings.getSettings, undefined, projectId),
+    );
+    assert.deepEqual(before.projectIcon, { kind: "emoji", emoji: "🦊" });
+    const rows = yield* sql<{ readonly favicon_path: string | null }>`
+      SELECT favicon_path FROM projection_projects WHERE project_id = ${projectId}
+    `;
+    assert.deepEqual(rows, [{ favicon_path: null }]);
+  }).pipe(Effect.provide(layerTestFor(layerMetadata, layerTextGeneration(generateProjectIcon))));
+});
+
+it.effect("keeps the previous icon when regeneration fails", () => {
+  const generateProjectIcon = vi.fn<
+    TextGeneration.TextGeneration["Service"]["generateProjectIcon"]
+  >(() =>
+    Effect.fail(
+      new TextGenerationError({ operation: "generateProjectIcon", detail: "No model available." }),
+    ),
+  );
+  return Effect.gen(function* () {
+    const service = yield* ProjectService.ProjectService;
+    const sql = yield* SqlClient.SqlClient;
+    const projectId = ProjectId.make("project:regenerate-icon-failure");
+    yield* service.create({
+      commandId: CommandId.make("command:regenerate-icon-failure:create"),
+      projectId,
+      title: "Regenerate failure",
+      workspaceRoot: "/work/regenerate-failure",
+    });
+    const before = yield* service.update({
+      commandId: CommandId.make("command:regenerate-icon-failure:set-icon"),
+      projectId,
+      projectIcon: { kind: "emoji", emoji: "🦊" },
+      faviconPath: "/work/regenerate-failure/custom.svg",
+    });
+
+    const failure = yield* service
+      .update({
+        commandId: CommandId.make("command:regenerate-icon-failure:regenerate"),
+        projectId,
+        regenerateIcon: true,
+      })
+      .pipe(Effect.flip);
+
+    assert.instanceOf(failure, ProjectService.ProjectOperationError);
+    assert.equal(failure.operation, "generate-project-icon");
+    const after = Option.getOrThrow(yield* service.getById(projectId));
+    assert.deepEqual(after.projectIcon, before.projectIcon);
+    assert.equal(after.faviconPath, before.faviconPath);
+    const events = yield* sql<{ readonly event_type: string }>`
+      SELECT event_type FROM orchestration_events
+      WHERE stream_id = ${projectId} ORDER BY sequence ASC
+    `;
+    assert.deepEqual(
+      events.map((event) => event.event_type),
+      ["project.created", "project.meta-updated"],
+    );
+    assert.equal(generateProjectIcon.mock.calls.length, 1);
+  }).pipe(Effect.provide(layerTestFor(layerMetadata, layerTextGeneration(generateProjectIcon))));
 });
 
 it.effect("keeps project snapshots available when optional metadata enrichment fails", () =>

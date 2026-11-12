@@ -1,3 +1,4 @@
+import { projectEnvironment } from "../../state/projects";
 import * as Dialog from "../../components/ui/Dialog";
 import type { ThreadRowProviderInstance } from "./thread-provider-instance";
 import {
@@ -749,6 +750,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   const rowAccessibilityLabel = `${thread.title}${props.hasQueuedMessages ? ", messages queued to send" : ""}${isRegeneratingTitle ? ", regenerating title" : ""}`;
   const timeLabel = props.timeLabel;
 
+  const updateProject = useAtomCommand(projectEnvironment.update);
   const visitThread = useAtomCommand(threadEnvironment.visit, { reportFailure: false });
   const handleAcknowledgeWoke = useCallback(() => {
     if (props.wokeAt === null) return;
@@ -896,6 +898,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         supported: props.titleRegenerationSupported,
         isRegenerating: isRegeneratingTitle,
       }),
+      { id: "regenerate-icon", title: "Regenerate icon", image: "arrow.clockwise" },
       ...(canTurnIntoProject
         ? [
             {
@@ -1009,6 +1012,11 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       if (nativeEvent.event === "archive") handleArchive();
       if (nativeEvent.event === "rename") handleRename();
       if (nativeEvent.event === "regenerate-title") handleRegenerateTitle();
+      if (nativeEvent.event === "regenerate-icon")
+        void updateProject({
+          environmentId: thread.environmentId,
+          input: { projectId: thread.projectId, regenerateIcon: true },
+        });
       if (nativeEvent.event === "turn-into-project") void turnThreadIntoProject(thread);
       if (nativeEvent.event === "copy-thread") {
         const target = threadChipCopyTarget(
@@ -1043,6 +1051,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       }
     },
     [
+      updateProject,
       onNewThreadOnBranch,
       thread,
       handleArchive,

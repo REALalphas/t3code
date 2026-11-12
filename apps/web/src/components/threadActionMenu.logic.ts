@@ -19,6 +19,7 @@ export type ThreadActionMenuId =
   | "unsnooze"
   | "rename"
   | "regenerate-title"
+  | "regenerate-icon"
   | "mark-unread"
   | "share-guest"
   | "copy"
@@ -175,6 +176,7 @@ export function buildThreadActionMenuItems(
             icon: "refresh-cw",
             disabled: state.isRegeneratingTitle,
           },
+          { id: "regenerate-icon" as const, label: "Regenerate icon", icon: "refresh-cw" },
         ]
       : []),
     { id: "mark-unread", label: "Mark unread", icon: "mail-open" },
