@@ -31,7 +31,7 @@ the version.
 - Runs lint, typecheck, and tests alongside artifact builds. Publishing waits for every check.
 - Reads the shared production T3 Connect relay URL and Clerk client configuration before packaging clients.
 - Builds the platform-independent JS (server bundle, web client, Electron main) once in the `build_bundle` job and hands it to every platform job as the `js-bundle` artifact; the platform jobs only package it, so no runner rebuilds it.
-- Builds Linux `x64` and `arm64` AppImages and `.deb` packages on Blacksmith runners of the same architecture, with one job per architecture. The `.deb` updates in the app through electron-updater, which installs it with `dpkg`. The workflow also defines a pair of macOS build jobs, currently disabled. When enabled, both must pass before publishing.
+- Builds Linux `x64` and `arm64` AppImages and `.deb` packages on GitHub-hosted Ubuntu 24.04 runners of the same architecture, with one job per architecture. The `.deb` updates in the app through electron-updater, which installs it with `dpkg`. The workflow also defines a pair of macOS build jobs, currently disabled. When enabled, both must pass before publishing.
 - Opens the packaged Linux x64 AppImage under Xvfb, loads a seeded database, and opens a thread (`scripts/smoke-desktop-app.ts`). A build whose backend or bundle cannot start fails here. The database in `scripts/fixtures/desktop-launch` is an old snapshot on purpose: the packaged server must migrate it forward, as it does for upgrading users. Do not regenerate it on schema changes.
 - Publishes one GitHub Release with all produced files.
   - Stable tags with a suffix after `X.Y.Z` (for example `1.2.3-alpha.1`) are published as GitHub prereleases.
