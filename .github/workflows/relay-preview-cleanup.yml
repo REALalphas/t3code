@@ -58,7 +58,7 @@ jobs:
       ALCHEMY_TELEMETRY_DISABLED: "1"
     steps:
       - name: Checkout default branch
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: useblacksmith/checkout@v1 # v6.1.0
         with:
           ref: ${{ github.event.repository.default_branch }}
           sparse-checkout: |
@@ -170,7 +170,7 @@ jobs:
 
       - name: Checkout default branch
         if: steps.eligible.outputs.eligible == 'yes'
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: useblacksmith/checkout@v1 # v6.1.0
         with:
           ref: ${{ github.event.repository.default_branch }}
           sparse-checkout: |

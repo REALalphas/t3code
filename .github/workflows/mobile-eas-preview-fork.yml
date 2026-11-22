@@ -81,7 +81,7 @@ jobs:
       # the PR's scripts to read.
       - name: Checkout reviewed commit
         if: steps.expo-token.outputs.present == 'true'
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: useblacksmith/checkout@v1 # v6.1.0
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
@@ -90,7 +90,7 @@ jobs:
       # Scripts and actions come from main, not from the PR.
       - name: Checkout trusted scripts
         if: steps.expo-token.outputs.present == 'true'
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: useblacksmith/checkout@v1 # v6.1.0
         with:
           path: .trusted
           sparse-checkout: |
@@ -243,14 +243,14 @@ jobs:
       ORG_GRADLE_PROJECT_reactNativeArchitectures: armeabi-v7a,arm64-v8a
     steps:
       - name: Checkout reviewed commit
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: useblacksmith/checkout@v1 # v6.1.0
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
       # Scripts and actions come from main, not from the PR.
       - name: Checkout trusted scripts
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: useblacksmith/checkout@v1 # v6.1.0
         with:
           path: .trusted
           sparse-checkout: |
@@ -362,7 +362,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout comment script
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: useblacksmith/checkout@v1 # v6.1.0
         with:
           sparse-checkout: .github/scripts
 

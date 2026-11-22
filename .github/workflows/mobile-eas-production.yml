@@ -130,7 +130,7 @@ jobs:
 
       - name: Checkout
         if: steps.expo-token.outputs.present == 'true'
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: useblacksmith/checkout@v1 # v6.1.0
         with:
           fetch-depth: 0
           token: ${{ steps.version_app_token.outputs.token || github.token }}
@@ -475,7 +475,7 @@ jobs:
       BUILD_TAG: mobile-android-build/${{ needs.production.outputs.android_version }}/${{ needs.production.outputs.android_fingerprint }}
     steps:
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: useblacksmith/checkout@v1 # v6.1.0
         with:
           ref: ${{ needs.production.outputs.android_sha }}
           fetch-depth: 0
