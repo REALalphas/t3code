@@ -51,15 +51,13 @@ export function ProjectFavicon(input: {
   );
 
   const content = renderProjectFaviconContent(input);
-  if (!isRegenerating) return content;
-
   return (
     <span
       className={cn(
-        "inline-flex items-center justify-center animate-pulse opacity-70",
-        input.className,
+        "inline-flex shrink-0 items-center justify-center",
+        isRegenerating && "opacity-70 motion-safe:animate-pulse",
       )}
-      aria-busy="true"
+      aria-busy={isRegenerating || undefined}
     >
       {content}
     </span>

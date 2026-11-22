@@ -8,6 +8,13 @@ const harness = vi.hoisted(() => ({
 }));
 
 vi.mock("react-native", () => ({ View: harness.Passthrough }));
+vi.mock("react-native-reanimated", () => ({
+  default: { View: harness.Passthrough },
+  useAnimatedStyle: () => ({}),
+  useReducedMotion: () => false,
+  withRepeat: (value: unknown) => value,
+  withTiming: (value: unknown) => value,
+}));
 vi.mock("expo-image", () => ({ Image: () => <img alt="" /> }));
 vi.mock("./ui/AppSymbol", () => ({ SymbolView: () => null }));
 vi.mock("./ui/AppText", () => ({
@@ -20,6 +27,10 @@ vi.mock("../state/assets", async () => {
   const { Atom } = await import("effect/reactivity");
   const url = Atom.make<string | null>("https://example.test/favicon.png");
   return { projectFaviconUrlAtom: () => url };
+});
+vi.mock("../state/projects", async () => {
+  const { Atom } = await import("effect/reactivity");
+  return { projectIconRegeneratingAtom: Atom.family(() => Atom.make(false)) };
 });
 
 import { EnvironmentId } from "@t3tools/contracts";

@@ -520,6 +520,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
                       leading={
                         <ProjectFavicon
                           environmentId={scope.representative.environmentId}
+                          projectId={scope.representative.id}
                           faviconPath={scope.representative.faviconPath}
                           projectIcon={scope.representative.projectIcon}
                           size={24}
@@ -545,6 +546,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
                       <View className="h-7 w-7 items-center justify-center">
                         <ProjectFavicon
                           environmentId={scope.representative.environmentId}
+                          projectId={scope.representative.id}
                           faviconPath={scope.representative.faviconPath}
                           projectIcon={scope.representative.projectIcon}
                           size={20}

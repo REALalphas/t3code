@@ -138,6 +138,7 @@ function PaletteRow(props: {
         {props.item.project ? (
           <ProjectFavicon
             environmentId={props.item.project.environmentId}
+            projectId={props.item.project.id}
             faviconPath={props.item.project.faviconPath}
             projectIcon={props.item.project.projectIcon}
             projectTitle={props.item.project.title}

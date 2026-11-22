@@ -776,6 +776,7 @@ it.effect("keeps the previous icon when regeneration fails", () => {
 
     assert.instanceOf(failure, ProjectService.ProjectOperationError);
     assert.equal(failure.operation, "generate-project-icon");
+    assert.equal(failure.message, "No model available.");
     const after = Option.getOrThrow(yield* service.getById(projectId));
     assert.deepEqual(after.projectIcon, before.projectIcon);
     assert.equal(after.faviconPath, before.faviconPath);

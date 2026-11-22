@@ -3,7 +3,18 @@ import { AppText } from "./ui/AppText";
 import { Image } from "expo-image";
 import { memo, useLayoutEffect, useMemo, useState } from "react";
 import { View } from "react-native";
-import type { EnvironmentId, ProjectIconOverride } from "@t3tools/contracts";
+import Animated, {
+  useAnimatedStyle,
+  useReducedMotion,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
+import {
+  scopeProjectKey,
+  type EnvironmentId,
+  type ProjectIconOverride,
+  type ProjectId,
+} from "@t3tools/contracts";
 import {
   getProjectFaviconCacheKey,
   getProjectFaviconResourceKey,
@@ -22,6 +33,7 @@ import {
   type ProjectIconGlyph,
 } from "../lib/projectIcon";
 import { resolveProjectFaviconColorScheme } from "../lib/projectFaviconColorScheme";
+import { projectIconRegeneratingAtom } from "../state/projects";
 
 import {
   beginProjectFaviconRequest,
@@ -35,6 +47,7 @@ const EMPTY_FAVICON_URL = Atom.make<string | null>(null);
 
 export const ProjectFavicon = memo(function ProjectFavicon(props: {
   readonly environmentId: EnvironmentId;
+  readonly projectId?: ProjectId;
   readonly open?: boolean;
   readonly size?: number;
   readonly projectTitle: string;
@@ -43,6 +56,19 @@ export const ProjectFavicon = memo(function ProjectFavicon(props: {
   readonly projectIcon?: ProjectIconOverride | null;
 }) {
   const size = props.size ?? 42;
+  const regenerationKey =
+    props.projectId === undefined
+      ? ""
+      : scopeProjectKey({ environmentId: props.environmentId, projectId: props.projectId });
+  const isRegenerating = useAtomValue(projectIconRegeneratingAtom(regenerationKey));
+  const reducedMotion = useReducedMotion();
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: isRegenerating
+      ? reducedMotion
+        ? 0.6
+        : withRepeat(withTiming(0.45, { duration: 650 }), -1, true)
+      : 1,
+  }));
   const symbol = resolveProjectIconSymbol(props.projectIcon);
   const glyph = resolveProjectIconGlyph(props.projectIcon, props.projectTitle);
   const faviconUrl = useAtomValue(
@@ -63,30 +89,34 @@ export const ProjectFavicon = memo(function ProjectFavicon(props: {
         : getProjectFaviconCacheKey(props.environmentId, props.workspaceRoot, renderableFaviconUrl)
       : null;
 
-  if (symbol !== null) {
-    return (
+  const icon =
+    symbol !== null ? (
       <SymbolView
         name={symbol.name}
         size={size}
         tintColorClassName={projectIconColorClassNames(symbol.color).tint}
         type="monochrome"
       />
+    ) : glyph !== null ? (
+      <ProjectIconGlyphView glyph={glyph} size={size} />
+    ) : (
+      <ProjectFaviconImage
+        key={cacheKey}
+        cacheKey={cacheKey}
+        faviconUrl={renderableFaviconUrl}
+        open={props.open}
+        projectTitle={props.projectTitle}
+        size={size}
+      />
     );
-  }
-
-  if (glyph !== null) {
-    return <ProjectIconGlyphView glyph={glyph} size={size} />;
-  }
 
   return (
-    <ProjectFaviconImage
-      key={cacheKey}
-      cacheKey={cacheKey}
-      faviconUrl={renderableFaviconUrl}
-      open={props.open}
-      projectTitle={props.projectTitle}
-      size={size}
-    />
+    <Animated.View
+      accessibilityState={isRegenerating ? { busy: true } : undefined}
+      style={[{ width: size, height: size }, animatedStyle]}
+    >
+      {icon}
+    </Animated.View>
   );
 });
 
