@@ -4,7 +4,7 @@ import {
   type EnvironmentId,
   type ThreadId,
 } from "@t3tools/contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { useStableCallback } from "../../hooks/useStableCallback";
@@ -47,14 +47,16 @@ export function useComposerAutocomplete(
       ])
     : null;
   const [result, setResult] = useState<{ key: string; suffix: string } | null>(null);
+  const dismissedKey = useRef<string | null>(null);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the debounced environment request for the active draft
   useEffect(() => {
     if (requestKey === null) return;
+    dismissedKey.current = null;
     let current = true;
     const timer = window.setTimeout(() => {
       void run({ environmentId, input: { threadId, draft } }).then((answer) => {
-        if (current && answer._tag === "Success") {
+        if (current && dismissedKey.current !== requestKey && answer._tag === "Success") {
           setResult({ key: requestKey, suffix: answer.value.suffix });
         }
       });
@@ -67,6 +69,9 @@ export function useComposerAutocomplete(
 
   return {
     suffix: requestKey !== null && result?.key === requestKey ? result.suffix : "",
-    dismiss: () => setResult(null),
+    dismiss: () => {
+      dismissedKey.current = requestKey;
+      setResult(null);
+    },
   };
 }
