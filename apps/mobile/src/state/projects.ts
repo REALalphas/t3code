@@ -1,5 +1,6 @@
 import { createEnvironmentProjectAtoms } from "@t3tools/client-runtime/state/projects";
 import { createProjectEnvironmentAtoms } from "@t3tools/client-runtime/state/projects";
+import { Atom } from "effect/reactivity";
 
 import { environmentCatalog } from "../connection/catalog";
 import { connectionAtomRuntime } from "../connection/runtime";
@@ -14,3 +15,7 @@ export const environmentProjects = createEnvironmentProjectAtoms({
 export const projectEnvironment = createProjectEnvironmentAtoms(connectionAtomRuntime, {
   projectAtom: environmentProjects.projectAtom,
 });
+
+export const projectIconRegeneratingAtom = Atom.family((key: string) =>
+  Atom.make(false).pipe(Atom.withLabel(`mobile-project-icon-regenerating:${key}`)),
+);

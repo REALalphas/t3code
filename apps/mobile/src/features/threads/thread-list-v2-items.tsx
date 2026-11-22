@@ -1,4 +1,4 @@
-import { projectEnvironment } from "../../state/projects";
+import { projectEnvironment, projectIconRegeneratingAtom } from "../../state/projects";
 import * as Dialog from "../../components/ui/Dialog";
 import type { ThreadRowProviderInstance } from "./thread-provider-instance";
 import {
@@ -28,9 +28,15 @@ import {
 } from "@t3tools/client-runtime/state/models";
 import {
   AuthOrchestrationOperateScope,
+  scopeProjectKey,
   type EnvironmentId,
   type EnvironmentMachineKind,
 } from "@t3tools/contracts";
+import { useAtomValue } from "@effect/atom-react";
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+} from "@t3tools/client-runtime/state/runtime";
 import { toServerClock } from "@t3tools/client-runtime/clock";
 import type { SnoozePresetSetting } from "@t3tools/contracts/settings";
 import { canSnooze } from "@t3tools/client-runtime/state/thread-settled";
@@ -465,6 +471,7 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
           <View className="justify-center" style={{ height: titleLineHeight }}>
             <ProjectFavicon
               environmentId={pendingTask.environmentId}
+              projectId={props.project.id}
               faviconPath={props.project.faviconPath}
               projectIcon={props.project.projectIcon}
               size={projectIconSize}
@@ -800,7 +807,28 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
     regeneratingTitle: isRegeneratingTitle,
   });
 
-  const updateProject = useAtomCommand(projectEnvironment.update);
+  const updateProject = useAtomCommand(projectEnvironment.update, { reportFailure: false });
+  const iconRegenerating = projectIconRegeneratingAtom(scopeProjectKey(thread));
+  const isRegeneratingIcon = useAtomValue(iconRegenerating);
+  const regenerateProjectIcon = useCallback(async () => {
+    if (appAtomRegistry.get(iconRegenerating)) return;
+    const unmount = appAtomRegistry.mount(iconRegenerating);
+    appAtomRegistry.set(iconRegenerating, true);
+    const result = await updateProject({
+      environmentId: thread.environmentId,
+      input: { projectId: thread.projectId, regenerateIcon: true },
+    }).finally(() => {
+      appAtomRegistry.set(iconRegenerating, false);
+      unmount();
+    });
+    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+      const error = squashAtomCommandFailure(result);
+      Dialog.alert(
+        "Failed to regenerate project icon",
+        error instanceof Error ? error.message : "Could not generate project icon.",
+      );
+    }
+  }, [iconRegenerating, thread.environmentId, thread.projectId, updateProject]);
   const visitThread = useAtomCommand(threadEnvironment.visit, { reportFailure: false });
   const markThreadUnread = useAtomCommand(threadEnvironment.markUnread, { reportFailure: false });
   const handleAcknowledgeWoke = useCallback(() => {
@@ -949,7 +977,12 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         supported: props.titleRegenerationSupported,
         isRegenerating: isRegeneratingTitle,
       }),
-      { id: "regenerate-icon", title: "Regenerate icon", image: "arrow.clockwise" },
+      {
+        id: "regenerate-icon",
+        title: isRegeneratingIcon ? "Regenerating icon…" : "Regenerate icon",
+        image: "arrow.clockwise",
+        attributes: { disabled: isRegeneratingIcon },
+      },
       { id: "mark-unread", title: "Mark unread", image: "envelope.badge" },
       ...(canTurnIntoProject
         ? [
@@ -962,7 +995,13 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
           ]
         : []),
     ],
-    [canTurnIntoProject, props.titleRegenerationSupported, thread.runtime, isRegeneratingTitle],
+    [
+      canTurnIntoProject,
+      props.titleRegenerationSupported,
+      thread.runtime,
+      isRegeneratingTitle,
+      isRegeneratingIcon,
+    ],
   );
   const menuActions = useMemo<MenuAction[]>(() => {
     const nested = Platform.OS === "ios";
@@ -1064,11 +1103,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       if (nativeEvent.event === "archive") handleArchive();
       if (nativeEvent.event === "rename") handleRename();
       if (nativeEvent.event === "regenerate-title") handleRegenerateTitle();
-      if (nativeEvent.event === "regenerate-icon")
-        void updateProject({
-          environmentId: thread.environmentId,
-          input: { projectId: thread.projectId, regenerateIcon: true },
-        });
+      if (nativeEvent.event === "regenerate-icon") void regenerateProjectIcon();
       if (nativeEvent.event === "turn-into-project") void turnThreadIntoProject(thread);
       if (nativeEvent.event === "mark-unread") {
         void markThreadUnread({
@@ -1109,7 +1144,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       }
     },
     [
-      updateProject,
+      regenerateProjectIcon,
       onNewThreadOnBranch,
       thread,
       handleArchive,
@@ -1200,6 +1235,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
           <View className="justify-center" style={{ height: titleLineHeight }}>
             <ProjectFavicon
               environmentId={thread.environmentId}
+              projectId={props.project.id}
               faviconPath={props.project.faviconPath}
               projectIcon={props.project.projectIcon}
               size={projectIconSize}
@@ -1470,7 +1506,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         accessibilityHint={swipeAccessibilityHint}
         accessibilityLabel={rowAccessibilityLabel}
         accessibilityRole="button"
-        accessibilityState={{ selected }}
+        accessibilityState={{ selected, busy: isRegeneratingIcon }}
         accessibilityActions={rowAccessibilityActions}
         onAccessibilityAction={(event) => {
           if (event.nativeEvent.actionName === "openPullRequests") handleOpenPullRequests();
@@ -1501,7 +1537,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         accessibilityHint={swipeAccessibilityHint}
         accessibilityLabel={rowAccessibilityLabel}
         accessibilityRole="button"
-        accessibilityState={{ selected }}
+        accessibilityState={{ selected, busy: isRegeneratingIcon }}
         className={rowAppearance.className}
         onPress={() => {
           close();
@@ -1520,6 +1556,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
             <View className="opacity-40">
               <ProjectFavicon
                 environmentId={thread.environmentId}
+                projectId={props.project.id}
                 faviconPath={props.project.faviconPath}
                 projectIcon={props.project.projectIcon}
                 size={projectIconSize}

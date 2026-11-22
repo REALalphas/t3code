@@ -156,11 +156,15 @@ export class ProjectOperationError extends Schema.TaggedError<ProjectOperationEr
     ]),
     projectId: Schema.optional(ProjectId),
     workspaceRoot: Schema.optional(Schema.String),
+    detail: Schema.optional(Schema.String),
     cause: Schema.Defect(),
   },
 ) {
   override get message(): string {
-    return `Project operation '${this.operation}' failed${this.projectId === undefined ? "" : ` for ${this.projectId}`}.`;
+    return (
+      this.detail ??
+      `Project operation '${this.operation}' failed${this.projectId === undefined ? "" : ` for ${this.projectId}`}.`
+    );
   }
 }
 
@@ -387,6 +391,7 @@ export const make = Effect.gen(function* () {
       return yield* new ProjectOperationError({
         operation: "generate-project-icon",
         projectId: input.projectId,
+        detail: "Text generation is not available in this runtime.",
         cause: "Text generation is not available in this runtime.",
       });
     }
@@ -396,6 +401,7 @@ export const make = Effect.gen(function* () {
           new ProjectOperationError({
             operation: "generate-project-icon",
             projectId: input.projectId,
+            detail: "Could not read project icon generation settings.",
             cause,
           }),
       ),
@@ -429,6 +435,7 @@ export const make = Effect.gen(function* () {
             new ProjectOperationError({
               operation: "generate-project-icon",
               projectId: input.projectId,
+              detail: cause.detail,
               cause,
             }),
         ),
