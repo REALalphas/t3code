@@ -3842,6 +3842,7 @@ export const ORCHESTRATION_V2_WS_METHODS = {
   subscribeThread: "orchestration.subscribeThread",
   subscribeCommandOutput: "orchestration.subscribeCommandOutput",
   subscribePromptSuggestion: "orchestration.subscribePromptSuggestion",
+  completeComposer: "orchestration.completeComposer",
 } as const;
 
 export const OrchestrationV2SubscribeCommandOutputInput = Schema.Struct({
@@ -3870,6 +3871,13 @@ export class OrchestrationV2CommandOutputError extends Schema.TaggedError<Orches
     cause: Schema.optional(Schema.Defect()),
   },
 ) {}
+
+export const MAX_COMPOSER_AUTOCOMPLETE_DRAFT_LENGTH = 16_384;
+export const OrchestrationV2CompleteComposerInput = Schema.Struct({
+  threadId: Schema.NullOr(ThreadId),
+  draft: Schema.String.check(Schema.isMaxLength(MAX_COMPOSER_AUTOCOMPLETE_DRAFT_LENGTH)),
+});
+export type OrchestrationV2CompleteComposerInput = typeof OrchestrationV2CompleteComposerInput.Type;
 
 export const OrchestrationV2SubscribePromptSuggestionInput = Schema.Struct({
   threadId: ThreadId,
@@ -4564,6 +4572,10 @@ export const OrchestrationV2RpcSchemas = {
   subscribeCommandOutput: {
     input: OrchestrationV2SubscribeCommandOutputInput,
     output: OrchestrationV2CommandOutputFrame,
+  },
+  completeComposer: {
+    input: OrchestrationV2CompleteComposerInput,
+    output: Schema.Struct({ suffix: Schema.String }),
   },
   subscribePromptSuggestion: {
     input: OrchestrationV2SubscribePromptSuggestionInput,

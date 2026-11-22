@@ -34,6 +34,34 @@ const decodeServerSettingsPatch = Schema.decodeUnknownSync(ServerSettingsPatch);
 
 const FOLDED_SERVER_SETTINGS = { ...DEFAULT_SERVER_SETTINGS, projectSettingsFolded: true };
 
+it("stores the autocomplete context limit and replaces or clears its model selection", () => {
+  const original = {
+    instanceId: ProviderInstanceId.make("codex"),
+    model: "old",
+    options: [{ id: "effort", value: "high" }],
+  };
+  const replacement = { instanceId: ProviderInstanceId.make("claudeAgent"), model: "haiku" };
+  const saved = applyServerSettingsPatch(
+    { ...DEFAULT_SERVER_SETTINGS, composerAutocompleteModelSelection: original },
+    decodeServerSettingsPatch({
+      composerAutocompleteEnabled: true,
+      composerAutocompleteContextTokens: 0,
+      composerAutocompleteModelSelection: replacement,
+    }),
+  );
+  expect(saved).toMatchObject({
+    composerAutocompleteEnabled: true,
+    composerAutocompleteContextTokens: 0,
+    composerAutocompleteModelSelection: replacement,
+  });
+  expect(saved.composerAutocompleteModelSelection).toEqual(replacement);
+  expect(
+    applyServerSettingsPatch(saved, {
+      composerAutocompleteModelSelection: null,
+    }).composerAutocompleteModelSelection,
+  ).toBeNull();
+});
+
 describe("fallbackTextGenerationModelSelection", () => {
   it("uses Big Pickle when only OpenCode is enabled", () => {
     expect(

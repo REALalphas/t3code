@@ -22,6 +22,8 @@ import {
   sanitizeThreadTitle,
 } from "./textGenerationUtils.ts";
 
+export const ComposerAutocompleteOutput = Schema.Struct({ suffix: Schema.String });
+
 export const TranscriptionPostProcessingOutput = Schema.Struct({ transcription: Schema.String });
 
 export type Operation = keyof ProviderTextGeneration;
@@ -225,6 +227,16 @@ export function fromRunner(name: string, run: Runner): ProviderTextGeneration {
   });
 
   return {
+    generateComposerAutocomplete: Effect.fn(`${name}.generateComposerAutocomplete`)(
+      (input: Parameters<ProviderTextGeneration["generateComposerAutocomplete"]>[0]) =>
+        run({
+          operation: "generateComposerAutocomplete",
+          cwd: input.cwd,
+          prompt: input.prompt,
+          outputSchema: ComposerAutocompleteOutput,
+          modelSelection: input.modelSelection,
+        }),
+    ),
     generateCommitMessage,
     generatePrContent,
     generateBranchName,

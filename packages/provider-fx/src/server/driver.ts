@@ -53,6 +53,7 @@ const unsupportedTextGeneration: ProviderTextGeneration = (() => {
       }),
     );
   return {
+    generateComposerAutocomplete: () => unsupported("generateComposerAutocomplete"),
     generateCommitMessage: () => unsupported("generateCommitMessage"),
     generatePrContent: () => unsupported("generatePrContent"),
     generateBranchName: () => unsupported("generateBranchName"),

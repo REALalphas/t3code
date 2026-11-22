@@ -725,6 +725,7 @@ it.effect.each(PREFLIGHT_PRIMARY_STATES)("text generation preflight: %s", (prima
           generatePrContent: () => Effect.die("unused"),
           generateBranchName: () => Effect.die("unused"),
           generateReviewGuide: () => Effect.die("unused"),
+          generateComposerAutocomplete: () => Effect.die("unused autocomplete"),
           generateTranscriptionPostProcessing: () => Effect.die("unused"),
           generateProjectIcon: () => Effect.die("unused"),
           generateThreadTitle: (input) =>
@@ -821,6 +822,7 @@ it.effect(
           generatePrContent: () => Effect.die("unused"),
           generateBranchName: () => Effect.die("unused"),
           generateThreadTitle: () => Effect.die("unused"),
+          generateComposerAutocomplete: () => Effect.die("unused autocomplete"),
           generateTranscriptionPostProcessing: () => Effect.die("unused"),
           generateReviewGuide: (input) =>
             Effect.sync(() => {

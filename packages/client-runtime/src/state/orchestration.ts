@@ -173,6 +173,14 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
             Stream.filter((view) => view !== EMPTY_COMMAND_OUTPUT),
           ),
       }),
+      completeComposer: createEnvironmentRpcCommand(runtime, {
+        label: "environment-data:orchestration-v2:complete-composer",
+        tag: ORCHESTRATION_V2_WS_METHODS.completeComposer,
+        concurrency: {
+          mode: "latest",
+          key: ({ environmentId }) => environmentId,
+        },
+      }),
       // The open thread's predicted next prompt, while its composer is mounted.
       promptSuggestion: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
         label: "environment-data:orchestration-v2:prompt-suggestion",

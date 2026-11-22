@@ -318,6 +318,7 @@ function createTextGeneration(
       }),
     generateReviewGuide: () => Effect.succeed({ stops: [] }),
     generateProjectIcon: () => Effect.succeed({ name: "folder-code", color: "blue" }),
+    generateComposerAutocomplete: () => Effect.die("unused autocomplete"),
     generateTranscriptionPostProcessing: () =>
       Effect.succeed({ transcription: "processed transcript" }),
     ...overrides,
@@ -370,6 +371,7 @@ function createTextGeneration(
       ),
     generateReviewGuide: (input) => implementation.generateReviewGuide(input),
     generateProjectIcon: (input) => implementation.generateProjectIcon(input),
+    generateComposerAutocomplete: () => Effect.die("unused autocomplete"),
     generateTranscriptionPostProcessing: (input) =>
       implementation.generateTranscriptionPostProcessing(input),
   };

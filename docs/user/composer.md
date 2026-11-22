@@ -12,6 +12,12 @@ becomes an attachment when inserting it would exceed the message limit. On a
 hardware keyboard, use `Cmd+Shift+V` on Apple devices or `Ctrl+Shift+V` elsewhere
 to keep a large paste editable in the composer instead.
 
+On web and desktop, enable **Settings → Labs → Autocomplete messages** to show a
+muted continuation after a pause in typing. Press **Tab** to insert it or **Escape**
+to dismiss it. Choose which model receives your draft and how many recent
+conversation tokens to include. The token count is estimated. Set it to **0** to
+send only the draft.
+
 ## Formatting
 
 The composer writes Markdown and shows it styled as you type. When your cursor

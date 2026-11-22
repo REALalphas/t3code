@@ -201,6 +201,11 @@ function selectOpenCodeRuntimeTextGeneration(
   v2: ProviderTextGeneration,
 ): ProviderTextGeneration {
   return {
+    generateComposerAutocomplete: (input) =>
+      byOpenCodeRuntime(resolve, {
+        v1: v1.generateComposerAutocomplete(input),
+        v2: v2.generateComposerAutocomplete(input),
+      }),
     generateCommitMessage: (input) =>
       byOpenCodeRuntime(resolve, {
         v1: v1.generateCommitMessage(input),

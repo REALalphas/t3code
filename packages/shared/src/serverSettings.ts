@@ -633,6 +633,9 @@ export function applyServerSettingsPatch(
     ...(patch.speechPostProcessingModelSelection !== undefined
       ? { speechPostProcessingModelSelection: patch.speechPostProcessingModelSelection }
       : {}),
+    ...(patch.composerAutocompleteModelSelection !== undefined
+      ? { composerAutocompleteModelSelection: patch.composerAutocompleteModelSelection }
+      : {}),
     ...(patch.defaultProjectScripts !== undefined
       ? { defaultProjectScripts: patch.defaultProjectScripts }
       : {}),
