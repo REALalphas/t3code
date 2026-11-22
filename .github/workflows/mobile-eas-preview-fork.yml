@@ -22,7 +22,7 @@ jobs:
     if: >-
       github.event.pull_request.head.repo.full_name != github.repository &&
       github.event.label.name == '🚀 Mobile Continuous Deployment'
-    runs-on: [self-hosted, small]
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     concurrency:
       group: mobile-eas-preview-fork-${{ github.event.pull_request.number }}
       cancel-in-progress: true
@@ -227,7 +227,7 @@ jobs:
     name: Android preview client
     needs: preview
     if: needs.preview.outputs.build == 'true'
-    runs-on: [self-hosted, large-compute]
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 60
     permissions:
       contents: read
@@ -291,7 +291,7 @@ jobs:
     name: iOS preview client
     needs: preview
     if: ${{ false && needs.preview.outputs.ios_build == 'true' }}
-    runs-on: macos-26
+    runs-on: blacksmith-6vcpu-macos-26
     timeout-minutes: 60
     permissions:
       contents: read
@@ -353,7 +353,7 @@ jobs:
     name: Mobile preview comment
     needs: [preview, android-build, ios-build]
     if: always() && !cancelled() && needs.preview.result == 'success'
-    runs-on: [self-hosted, small]
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     concurrency:
       group: mobile-preview-comment-${{ github.event.pull_request.number }}
       cancel-in-progress: false
