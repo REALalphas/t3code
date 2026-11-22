@@ -120,7 +120,7 @@ jobs:
     name: Build and Typecheck
     needs: changes
     if: ${{ !cancelled() && (needs.changes.outputs.build != 'false' || needs.changes.outputs.typecheck != 'false') }}
-    runs-on: [self-hosted, large-compute]
+    runs-on: [self-hosted, large]
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -275,7 +275,7 @@ jobs:
     name: Test
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.test != 'false' }}
-    runs-on: [self-hosted, large-compute]
+    runs-on: [self-hosted, large]
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -365,12 +365,13 @@ jobs:
     name: Test Web ${{ matrix.shard }}
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.test_web != 'false' }}
-    runs-on: [self-hosted, large-compute]
+    runs-on: [self-hosted, medium]
     timeout-minutes: 20
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3, 4]
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -427,14 +428,15 @@ jobs:
       contents: read
       id-token: write
     name: Test Server ${{ matrix.shard }}
-    runs-on: [self-hosted, large-compute]
+    runs-on: [self-hosted, small]
     # Shards take 2-5 minutes. When the shared task cache throttles reads, each
     # failed fetch stalls vp for 15-90s, which pushed shards past 10 minutes.
     timeout-minutes: 20
     strategy:
       fail-fast: false
+      max-parallel: 8
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       # Depth 2 brings the base commit the change is diffed against.
       - name: Checkout
@@ -506,7 +508,7 @@ jobs:
           T3CODE_TRANSFER_BUDGET_SCENARIOS_PATH: ${{ runner.temp }}/thread-transfer-scenarios.json
         # One process per file spends ~2s starting before its tests run; one file per vCPU overlaps that.
         run: >-
-          vp run test:cached -- --shard ${{ matrix.shard }}/${{ strategy.job-total }} --concurrency 4
+          vp run test:cached -- --shard ${{ matrix.shard }}/${{ strategy.job-total }} --concurrency 2
           --uncached apps/server/integration/transferBudgetV2.integration.test.ts
           --verify-hits 1 apps/server
 
@@ -568,6 +570,15 @@ jobs:
             !/.repos/
             !/apps/mobile/modules/t3-terminal/Vendor/**/*.a
           sparse-checkout-cone-mode: false
+
+      - uses: ./.github/actions/setup-apt-mirrors
+
+      - name: Install D-Bus test runtime
+        run: |
+          sudo apt-get update -o Acquire::Languages=none \
+            -o Acquire::IndexTargets::deb::DEP-11::DefaultEnabled=false \
+            -o Acquire::IndexTargets::deb::CNF::DefaultEnabled=false
+          sudo apt-get install -y dbus-daemon
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
