@@ -27,6 +27,7 @@ import { type AntigravityReleaseAsset } from "./antigravityRelease.ts";
 
 const serverContents = "antigravity runtime\n";
 const harnessContents = "local harness\n";
+const hostPath = process.env.PATH ?? "";
 const previousReleaseId = "1".repeat(64);
 const previousVersion = "fixture-old";
 const encodeJsonString = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
@@ -197,7 +198,7 @@ const makeHarness = Effect.fn("test.makeAntigravityInstallation")(function* (
     Effect.provideService(HostProcess.Platform, platform),
     Effect.provideService(HostProcess.Architecture, arch),
     Effect.provideService(HostProcess.Environment, {
-      PATH: options.path ?? process.env.PATH ?? "",
+      PATH: options.path ?? hostPath,
     }),
     Effect.provideService(ModelManifest.ModelManifest, {
       current: options.manifest ?? Effect.succeed(ModelManifest.BUNDLED_MODEL_MANIFEST),
