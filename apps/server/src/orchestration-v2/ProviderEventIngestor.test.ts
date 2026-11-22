@@ -261,6 +261,7 @@ it.effect("takes a hub's reset for an unreset usage_limit, then refreshes the sn
         generatePrContent: () => Effect.die("unused"),
         generateThreadTitle: () => Effect.die("unused"),
         generateReviewGuide: () => Effect.die("unused"),
+        generateComposerAutocomplete: () => Effect.die("unused autocomplete"),
         generateTranscriptionPostProcessing: () => Effect.die("unused"),
         generateProjectIcon: () => Effect.die("unused"),
       },

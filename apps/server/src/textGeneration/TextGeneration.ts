@@ -47,14 +47,7 @@ export class TextGeneration extends Context.Service<TextGeneration, ProviderText
   "t3/textGeneration/TextGeneration",
 ) {}
 
-type TextGenerationOp =
-  | "generateCommitMessage"
-  | "generatePrContent"
-  | "generateBranchName"
-  | "generateThreadTitle"
-  | "generateReviewGuide"
-  | "generateProjectIcon"
-  | "generateTranscriptionPostProcessing";
+type TextGenerationOp = keyof ProviderTextGeneration;
 
 const resolveInstance = (
   registry: ProviderInstanceRegistry.ProviderInstanceRegistry["Service"],
@@ -121,6 +114,12 @@ export const make = Effect.gen(function* () {
           (selected.status === "error" &&
             (!selected.installed || selected.auth.status === "unauthenticated"))));
     if (unusable || exhaustedUsageWindow(selected, now, selection.model)) {
+      if (operation === "generateComposerAutocomplete") {
+        return yield* new TextGenerationError({
+          operation,
+          detail: "The configured autocomplete model is unavailable.",
+        });
+      }
       const settings = yield* serverSettings.getSettings.pipe(
         Effect.mapError(
           (cause) =>
@@ -167,6 +166,17 @@ export const make = Effect.gen(function* () {
     );
   });
   return TextGeneration.of({
+    generateComposerAutocomplete: Effect.fn("TextGeneration.generateComposerAutocomplete")(
+      function (input) {
+        return generate(
+          "generateComposerAutocomplete",
+          input.modelSelection,
+          input.projectId,
+          (service, modelSelection) =>
+            service.generateComposerAutocomplete({ ...input, modelSelection }),
+        );
+      },
+    ),
     generateCommitMessage: Effect.fn("TextGeneration.generateCommitMessage")(function (input) {
       return generate(
         "generateCommitMessage",

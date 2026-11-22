@@ -289,6 +289,7 @@ import {
 import { ComposerControlsBar } from "./ComposerControlsBar";
 import { composerCommandKeyHandler } from "./composerCommandKey";
 import { usePromptSuggestion } from "./usePromptSuggestion";
+import { useComposerAutocomplete } from "./useComposerAutocomplete";
 import { useFreshSessionArmed } from "./freshSessionArms";
 
 function consumePasteAsTextShortcut(deadline: { current: number }): boolean {
@@ -2372,6 +2373,25 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       ? promptSuggestion
       : null;
 
+  const autocomplete = useComposerAutocomplete(
+    environmentId,
+    freshSessionArmed ? null : (activeThread?.id ?? null),
+    composerDraftTargetKey,
+    prompt,
+    isComposerFocused &&
+      phase !== "running" &&
+      phase !== "connecting" &&
+      !isSendBusy &&
+      !speechInput.freezesEditor &&
+      composerContextRecords.size === 0 &&
+      !isComposerApprovalState &&
+      !activePendingProgress &&
+      !projectSelectionRequired &&
+      !showProviderUnavailable &&
+      composerTrigger === null &&
+      composerCursor === collapseExpandedComposerCursor(prompt, prompt.length),
+  );
+
   const onComposerCommandKey = (key: string, event: KeyboardEvent, isTaskItem?: boolean) =>
     composerCommandKeyHandler({
       keybindings,
@@ -3690,6 +3710,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     className={cn(showMobilePendingAnswerActions && "max-sm:pb-12")}
                     onChange={onPromptChangeStable}
                     onCommandKeyDown={onComposerCommandKeyStable}
+                    inlineSuggestion={autocomplete.suffix}
+                    onDismissInlineSuggestion={autocomplete.dismiss}
                     onPageScrollKeyDown={onPageScrollKeyDown}
                     onPageScrollKeyUp={onPageScrollKeyUp}
                     onPageScrollRelease={onPageScrollRelease}

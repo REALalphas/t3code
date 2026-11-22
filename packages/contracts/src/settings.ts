@@ -1362,6 +1362,11 @@ export const CloudSpeechCredentials = Schema.Struct({
   openrouter: CloudSpeechCredential,
 });
 
+export const MAX_COMPOSER_AUTOCOMPLETE_CONTEXT_TOKENS = 16_384;
+const ComposerAutocompleteContextTokens = Schema.Int.check(
+  Schema.isBetween({ minimum: 0, maximum: MAX_COMPOSER_AUTOCOMPLETE_CONTEXT_TOKENS }),
+);
+
 export const ServerSettings = Schema.Struct({
   // Null means unmigrated; empty is authoritative and must not resurrect cleared preferences.
   favorites: Schema.NullOr(ModelFavorites).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
@@ -1483,6 +1488,15 @@ export const ServerSettings = Schema.Struct({
   linkedEnvironmentsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   /** Beta: Claude and Codex predict the next prompt after completed turns. Codex follows a change at once; open Claude threads after they restart. */
   promptSuggestionsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  composerAutocompleteEnabled: Schema.Boolean.pipe(
+    Schema.withDecodingDefault(Effect.succeed(false)),
+  ),
+  composerAutocompleteModelSelection: Schema.NullOr(ModelSelection).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
+  composerAutocompleteContextTokens: ComposerAutocompleteContextTokens.pipe(
+    Schema.withDecodingDefault(Effect.succeed(2_048)),
+  ),
   sidebarAutoSettleKeepPullRequests: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(false)),
   ),
@@ -1919,6 +1933,9 @@ export const ServerSettingsPatch = Schema.Struct({
   guestSharingEnabled: Schema.optionalKey(Schema.Boolean),
   linkedEnvironmentsEnabled: Schema.optionalKey(Schema.Boolean),
   promptSuggestionsEnabled: Schema.optionalKey(Schema.Boolean),
+  composerAutocompleteEnabled: Schema.optionalKey(Schema.Boolean),
+  composerAutocompleteModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  composerAutocompleteContextTokens: Schema.optionalKey(ComposerAutocompleteContextTokens),
   backgroundActivity: Schema.optionalKey(
     Schema.Struct({
       schemaVersion: Schema.optionalKey(Schema.Literal(1)),

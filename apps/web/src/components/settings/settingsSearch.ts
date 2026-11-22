@@ -522,7 +522,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Suggest next prompt",
     to: "/settings/labs",
     scope: "environment",
-    searchTerms: ["beta tab autocomplete predict next message claude codex ghost text"],
+    searchTerms: ["beta tab predict next message claude codex"],
+  },
+  {
+    id: "composer-autocomplete",
+    title: "Autocomplete messages",
+    to: "/settings/labs",
+    scope: "environment",
+    searchTerms: ["beta inline ghost text tab completion model context tokens"],
   },
   {
     id: "simlock-hosts",

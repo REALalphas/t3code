@@ -25,6 +25,7 @@ import type { ProviderTextGeneration } from "@t3tools/provider-core/server/textG
 import {
   generatedThreadTitle,
   investigationUnsupported,
+  ComposerAutocompleteOutput,
   TranscriptionPostProcessingOutput,
 } from "@t3tools/provider-core/server/textGenerationOperations";
 import {
@@ -382,6 +383,15 @@ export const makeMuseTextGeneration = Effect.fn("makeMuseTextGeneration")(functi
     };
   });
   return {
+    generateComposerAutocomplete: Effect.fn("MuseTextGeneration.generateComposerAutocomplete")(
+      (input: Parameters<ProviderTextGeneration["generateComposerAutocomplete"]>[0]) =>
+        runMuseJson({
+          operation: "generateComposerAutocomplete",
+          prompt: input.prompt,
+          outputSchema: ComposerAutocompleteOutput,
+          modelSelection: input.modelSelection,
+        }),
+    ),
     generateCommitMessage,
     generatePrContent,
     generateBranchName,

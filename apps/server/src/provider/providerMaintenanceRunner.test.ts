@@ -1033,6 +1033,7 @@ describe("providerMaintenanceRunner", () => {
           generatePrContent: () => Effect.die("unused"),
           generateBranchName: () => Effect.die("unused"),
           generateReviewGuide: () => Effect.die("unused"),
+          generateComposerAutocomplete: () => Effect.die("unused autocomplete"),
           generateTranscriptionPostProcessing: () => Effect.die("unused"),
           generateProjectIcon: () => Effect.die("unused"),
           generateThreadTitle: () =>

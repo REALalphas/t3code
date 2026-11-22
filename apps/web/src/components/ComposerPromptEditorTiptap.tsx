@@ -16,7 +16,7 @@ import {
 import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { newlineInCode, splitBlockKeepMarks } from "@tiptap/pm/commands";
-import { isHistoryTransaction } from "@tiptap/pm/history";
+import { closeHistory, isHistoryTransaction } from "@tiptap/pm/history";
 import {
   type EditorState,
   NodeSelection,
@@ -184,6 +184,9 @@ export interface ComposerPromptEditorProps {
   placeholder: string;
   /** Rendered after the placeholder text, such as a key hint. */
   placeholderSuffix?: ReactNode;
+  /** A muted suffix suggestion which stays outside the editor document until accepted. */
+  inlineSuggestion?: string;
+  onDismissInlineSuggestion?: () => void;
   ariaLabel?: string | undefined;
   suggestionListId?: string | undefined;
   activeSuggestionId?: string | undefined;
@@ -724,6 +727,66 @@ function isInCodeBlock(view: EditorView): boolean {
   return view.state.selection.$from.parent.type.spec.code === true;
 }
 
+function inlineSuggestionPosition(state: EditorState, value: string): number | null {
+  const { doc, selection } = state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return null;
+  const { $from } = selection;
+  if (
+    $from.parent.type.name !== "paragraph" ||
+    $from.depth !== 1 ||
+    $from.pos !== doc.content.size - 1 ||
+    serializeEditorDoc(doc).value !== value
+  ) {
+    return null;
+  }
+  return $from.pos;
+}
+
+type InlineSuggestion = { readonly draft: string; readonly suffix: string };
+const inlineSuggestionKey = new PluginKey<InlineSuggestion | null>("composer-inline-suggestion");
+
+const ComposerInlineSuggestionExtension = Extension.create({
+  name: "composer-inline-suggestion",
+  addProseMirrorPlugins() {
+    return [
+      new Plugin<InlineSuggestion | null>({
+        key: inlineSuggestionKey,
+        state: {
+          init: () => null,
+          apply: (tr, current) => {
+            const next = tr.getMeta(inlineSuggestionKey) as InlineSuggestion | null | undefined;
+            return next === undefined ? (tr.docChanged ? null : current) : next;
+          },
+        },
+        props: {
+          decorations: (state) => {
+            const suggestion = inlineSuggestionKey.getState(state);
+            if (!suggestion) return null;
+            const at = inlineSuggestionPosition(state, suggestion.draft);
+            if (at === null) return null;
+            return DecorationSet.create(state.doc, [
+              Decoration.widget(
+                at,
+                () => {
+                  const ghost = document.createElement("span");
+                  ghost.className = "pointer-events-none select-none opacity-50";
+                  ghost.setAttribute("aria-hidden", "true");
+                  const hint = document.createElement("kbd");
+                  hint.className = "ms-2 text-xs";
+                  hint.textContent = "Tab";
+                  ghost.append(suggestion.suffix, hint);
+                  return ghost;
+                },
+                { side: 1, key: suggestion.suffix },
+              ),
+            ]);
+          },
+        },
+      }),
+    ];
+  },
+});
+
 const ChipSelectionPluginKey = new PluginKey<DecorationSet>("composer-chip-range-selection");
 
 /** Highlights chips inside a text selection; their node views draw no native highlight. */
@@ -852,6 +915,7 @@ function createComposerExtensions(richText: boolean) {
     ComposerCitationExtension,
     ComposerContextReferenceExtension,
     ComposerChipSelectionExtension,
+    ComposerInlineSuggestionExtension,
     ...(richText
       ? [
           ComposerMarkdownSourceExtension,
@@ -956,6 +1020,8 @@ function ComposerPromptEditorTiptapInner(
     className,
     placeholderClassName,
     placeholderSuffix,
+    inlineSuggestion,
+    onDismissInlineSuggestion,
     onChange,
     onVisibleSelectionChange,
     onCommandKeyDown,
@@ -985,6 +1051,7 @@ function ComposerPromptEditorTiptapInner(
     onChange,
     onVisibleSelectionChange,
     onCommandKeyDown,
+    onDismissInlineSuggestion,
     isPathQueryActive,
     importContextFragment,
   }));
@@ -1290,6 +1357,32 @@ function ComposerPromptEditorTiptapInner(
             return indentCodeBlock(view.state, event.shiftKey ? "out" : "in", (tr) =>
               view.dispatch(tr),
             );
+          }
+          if (
+            (event.key === "Tab" || event.key === "Escape") &&
+            !event.shiftKey &&
+            !event.altKey &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.isComposing &&
+            event.keyCode !== 229 &&
+            !view.composing
+          ) {
+            const suggestion = inlineSuggestionKey.getState(view.state);
+            const at = suggestion ? inlineSuggestionPosition(view.state, suggestion.draft) : null;
+            if (suggestion && at !== null) {
+              event.preventDefault();
+              event.stopPropagation();
+              if (readCallbacks().onCommandKeyDown?.(event.key, event)) return true;
+              readCallbacks().onDismissInlineSuggestion?.();
+              if (event.key === "Tab") {
+                const insert = view.state.tr.insertText(suggestion.suffix, at);
+                view.dispatch(closeHistory(insert).scrollIntoView());
+              } else {
+                view.dispatch(view.state.tr.setMeta(inlineSuggestionKey, null));
+              }
+              return true;
+            }
           }
           if (
             event.key === "Enter" &&
@@ -1687,6 +1780,17 @@ function ComposerPromptEditorTiptapInner(
     isKnownModel,
     value,
   ]);
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- sets the ephemeral widget in the ProseMirror view
+  useLayoutEffect(() => {
+    if (!editor) return;
+    const view = editor.view;
+    const suffix = disabled || literalText || activeSuggestionId ? "" : inlineSuggestion;
+    const next = suffix && !view.composing ? { draft: value, suffix } : null;
+    const current = inlineSuggestionKey.getState(view.state);
+    if (current?.draft === next?.draft && current?.suffix === next?.suffix) return;
+    view.dispatch(view.state.tr.setMeta(inlineSuggestionKey, next));
+  }, [activeSuggestionId, disabled, editor, inlineSuggestion, literalText, value]);
 
   // Reconcile loaded or switched provider skills and models without rebuilding citation node views.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- replaces skill and model chip nodes in the Tiptap document when the provider skill or model list loads or changes

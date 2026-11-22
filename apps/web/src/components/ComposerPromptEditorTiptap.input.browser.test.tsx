@@ -66,6 +66,7 @@ function Composer({
   onCommandKeyDown = () => false,
   importContextFragment,
   literalText = false,
+  inlineSuggestion = "",
 }: {
   value: string;
   richTextEnabled: boolean;
@@ -74,8 +75,10 @@ function Composer({
   onCommandKeyDown?: ComposerPromptEditorProps["onCommandKeyDown"] | undefined;
   importContextFragment?: ComposerPromptEditorProps["importContextFragment"];
   literalText?: boolean;
+  inlineSuggestion?: string;
 }) {
   const [prompt, setPrompt] = useState({ value, cursor: value.length });
+  const [dismissed, setDismissed] = useState(false);
   return (
     <ComposerPromptEditor
       editorRef={createRef<ComposerPromptEditorHandle>()}
@@ -86,6 +89,8 @@ function Composer({
       skills={skills}
       disabled={false}
       placeholder=""
+      inlineSuggestion={!dismissed && prompt.value === value ? inlineSuggestion : ""}
+      onDismissInlineSuggestion={() => setDismissed(true)}
       onChange={(...args) => {
         setPrompt({ value: args[0], cursor: args[1] });
         onChange?.(...args);
@@ -104,6 +109,7 @@ function composer(
   skills: ReadonlyArray<ServerProviderSkill> = [],
   onChange?: ComposerPromptEditorProps["onChange"],
   onCommandKeyDown?: ComposerPromptEditorProps["onCommandKeyDown"],
+  inlineSuggestion = "",
 ) {
   return (
     <Composer
@@ -112,6 +118,7 @@ function composer(
       skills={skills}
       onChange={onChange}
       onCommandKeyDown={onCommandKeyDown}
+      inlineSuggestion={inlineSuggestion}
     />
   );
 }
@@ -137,6 +144,31 @@ async function mountEditor(...props: Parameters<typeof composer>) {
     },
   });
 }
+
+it("shows a draft completion inside the editor and inserts it as one undoable Tab edit", async () => {
+  const draft = "Add tests for";
+  const suffix = " the parser";
+  await using screen = await render(
+    <Composer value={draft} richTextEnabled skills={[]} inlineSuggestion={suffix} />,
+  );
+  const editor = editorIn(screen.container);
+  const textbox = screen.getByRole("textbox");
+  await act(async () => {
+    editor.commands.focus("end");
+  });
+  await vi.waitFor(() => expect(document.activeElement).toBe(editor.view.dom));
+  await expect.element(textbox.getByText("the parser", { exact: false })).toBeVisible();
+  expect(serializeEditorDoc(editor.state.doc).value).toBe(draft);
+
+  await userEvent.keyboard("{Tab}");
+  await vi.waitFor(() => expect(serializeEditorDoc(editor.state.doc).value).toBe(draft + suffix));
+  await expect.element(textbox.getByText("Tab", { exact: true })).not.toBeInTheDocument();
+
+  await act(async () => {
+    editor.commands.undo();
+  });
+  expect(serializeEditorDoc(editor.state.doc).value).toBe(draft);
+});
 
 async function replaceDomText(editor: Editor, text: string, isComposing = false) {
   await act(async () => {

@@ -135,6 +135,13 @@ export interface TranscriptionPostProcessingResult {
 }
 
 export interface ProviderTextGeneration {
+  readonly generateComposerAutocomplete: (input: {
+    readonly cwd: string;
+    readonly prompt: string;
+    readonly modelSelection: ModelSelection;
+    readonly projectId?: ProjectId | undefined;
+  }) => Effect.Effect<{ readonly suffix: string }, TextGenerationError>;
+
   readonly generateTranscriptionPostProcessing: (
     input: TranscriptionPostProcessingInput,
   ) => Effect.Effect<TranscriptionPostProcessingResult, TextGenerationError>;

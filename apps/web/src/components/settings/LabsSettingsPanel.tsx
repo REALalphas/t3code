@@ -1,15 +1,37 @@
 import { useAuth } from "@clerk/react";
 import { Link } from "@tanstack/react-router";
-import { managedCapabilityDenial } from "@t3tools/contracts";
+import {
+  DEFAULT_SERVER_SETTINGS,
+  MAX_COMPOSER_AUTOCOMPLETE_CONTEXT_TOKENS,
+  managedCapabilityDenial,
+} from "@t3tools/contracts";
 
 import { hasCloudPublicConfig } from "~/cloud/publicConfig";
 import { useT3ConnectAuthPrompt } from "../clerk/useT3ConnectAuthPrompt";
 import { Button } from "../ui/button";
+import { Input } from "../ui/input";
 import { Switch } from "../ui/switch";
+import { useEnvironmentProviders } from "../../state/environments";
+import { EMPTY_SERVER_PROVIDERS } from "../../state/server";
+import { useTextGenerationTargets } from "../../textGenerators";
+import { getTextGenerationModelOptionsByInstance } from "../../modelSelection";
+import { ProviderModelPicker } from "../chat/ProviderModelPicker";
+import { pickModelSelection } from "@t3tools/shared/model";
 import { ScopedSwitch } from "./ScopedSwitch";
-import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
+import {
+  SETTINGS_PICKER_TRIGGER_CLASSNAME,
+  SettingResetButton,
+  SettingsPageContainer,
+  SettingsRow,
+  SettingsSection,
+} from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
-import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
+import { useScopedModelDisabledReason } from "./useScopedModelAvailability";
+import {
+  useScopedSettings,
+  useScopedSettingsMixed,
+  useUpdateScopedSettings,
+} from "./useScopedSettings";
 import { useOptionalSettingsScope, useSettingsScope } from "./SettingsScopeContext";
 import { firstManagedDenial, usePrimaryManagedPolicy } from "~/state/managedPolicy";
 
@@ -23,6 +45,7 @@ export function LabsSettingsPanel() {
         {hasCloudPublicConfig() ? <GuestLinksRowWithSignIn /> : <GuestLinksRow />}
         <LinkedEnvironmentsRow />
         <PromptSuggestionsRow />
+        <ComposerAutocompleteSettings />
         <SimlockHostsRow />
         <FastWorktreeCheckoutRow />
       </SettingsSection>
@@ -185,6 +208,169 @@ function PromptSuggestionsRow() {
           }
           aria-label="Suggest next prompt"
         />
+      }
+    />
+  );
+}
+
+function ComposerAutocompleteSettings() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  const { environment, connectedEnvironments } = useSettingsScope();
+  const supported = connectedEnvironments.every(
+    (candidate) => candidate.serverConfig?.composerAutocomplete === true,
+  );
+  return (
+    <SettingsRow
+      serverScoped
+      {...searchableSetting("composer-autocomplete")}
+      settingKeys={["composerAutocompleteEnabled"]}
+      description={
+        supported
+          ? "Send your draft to the selected model after a pause in typing. Press Tab to insert the suggestion or Escape to dismiss it."
+          : "Update the selected environments to use autocomplete."
+      }
+      control={
+        <ScopedSwitch
+          settingKeys={["composerAutocompleteEnabled"]}
+          checked={settings.composerAutocompleteEnabled}
+          disabled={!supported}
+          onCheckedChange={(checked) =>
+            updateSettings({ composerAutocompleteEnabled: Boolean(checked) })
+          }
+          aria-label="Autocomplete messages"
+        />
+      }
+    >
+      {supported && settings.composerAutocompleteEnabled ? (
+        <div className="mt-2 mb-2 border-l-2 border-border/60 ps-3">
+          <AutocompleteModelRow />
+          <AutocompleteContextRow key={environment?.environmentId} />
+        </div>
+      ) : null}
+    </SettingsRow>
+  );
+}
+
+function AutocompleteModelRow() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  const { environment } = useSettingsScope();
+  const providersByEnvironment = useEnvironmentProviders();
+  const providers = environment
+    ? (providersByEnvironment.get(environment.environmentId) ?? EMPTY_SERVER_PROVIDERS)
+    : EMPTY_SERVER_PROVIDERS;
+  const saved = settings.composerAutocompleteModelSelection;
+  const targets = useTextGenerationTargets({
+    environmentId: environment?.environmentId ?? null,
+    settings,
+    providers: providers.filter((provider) => provider.supportsTextGeneration !== false),
+    projectId: null,
+    selections: [saved, settings.textGenerationModelSelection],
+  });
+  const selection = saved ?? settings.textGenerationModelSelection;
+  const modelOptionsByInstance = getTextGenerationModelOptionsByInstance(
+    settings,
+    targets.providers,
+    selection.instanceId,
+    selection.model,
+  );
+  const modelDisabledReason = useScopedModelDisabledReason(settings, targets.entries, true);
+  const mixed = useScopedSettingsMixed(["composerAutocompleteModelSelection"]);
+  return (
+    <SettingsRow
+      serverScoped
+      settingKeys={["composerAutocompleteModelSelection"]}
+      title="Autocomplete model"
+      description={
+        saved
+          ? "Choose a model for draft suggestions."
+          : "Using the environment’s text generation model."
+      }
+      className="px-0 py-2 sm:px-0"
+      resetAction={
+        saved || mixed ? (
+          <SettingResetButton
+            label="autocomplete model"
+            tooltip="Use the default text generation model"
+            onClick={() => updateSettings({ composerAutocompleteModelSelection: null })}
+          />
+        ) : null
+      }
+      control={
+        <ProviderModelPicker
+          environmentId={environment?.environmentId ?? null}
+          activeInstanceId={selection.instanceId}
+          model={selection.model}
+          lockedProvider={null}
+          instanceEntries={targets.entries}
+          modelOptionsByInstance={modelOptionsByInstance}
+          triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
+          getModelDisabledReason={modelDisabledReason}
+          onInstanceModelChange={(instanceId, model) =>
+            updateSettings({
+              composerAutocompleteModelSelection: pickModelSelection(selection, instanceId, model),
+            })
+          }
+        />
+      }
+    />
+  );
+}
+
+function AutocompleteContextRow() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  const mixed = useScopedSettingsMixed(["composerAutocompleteContextTokens"]);
+  const tokens = settings.composerAutocompleteContextTokens;
+  const defaultTokens = DEFAULT_SERVER_SETTINGS.composerAutocompleteContextTokens;
+  return (
+    <SettingsRow
+      serverScoped
+      settingKeys={["composerAutocompleteContextTokens"]}
+      title="Autocomplete context"
+      description="Estimated tokens of recent conversation sent with each draft. Set to 0 to send only the draft."
+      className="px-0 py-2 sm:px-0"
+      resetAction={
+        mixed || tokens !== defaultTokens ? (
+          <SettingResetButton
+            label="autocomplete context"
+            onClick={() => updateSettings({ composerAutocompleteContextTokens: defaultTokens })}
+          />
+        ) : null
+      }
+      control={
+        <div className="w-24">
+          <Input
+            key={mixed ? "mixed" : tokens}
+            size="sm"
+            type="number"
+            min={0}
+            max={MAX_COMPOSER_AUTOCOMPLETE_CONTEXT_TOKENS}
+            defaultValue={mixed ? "" : tokens}
+            placeholder={mixed ? "Mixed" : undefined}
+            onBlur={({ currentTarget }) => {
+              const next = currentTarget.valueAsNumber;
+              if (!currentTarget.validity.valid || !Number.isInteger(next)) {
+                currentTarget.value = mixed ? "" : String(tokens);
+              } else if (mixed || next !== tokens) {
+                updateSettings(
+                  { composerAutocompleteContextTokens: next },
+                  {
+                    onFailed: () => {
+                      currentTarget.value = mixed ? "" : String(tokens);
+                    },
+                  },
+                );
+              }
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing)
+                event.currentTarget.blur();
+            }}
+            aria-label="Autocomplete context tokens"
+          />
+        </div>
       }
     />
   );
