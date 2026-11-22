@@ -40,7 +40,7 @@ jobs:
       contents: read
       issues: write
       pull-requests: write
-    runs-on: [self-hosted, small]
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 30
     environment:
       name: relay-preview-cleanup
@@ -58,7 +58,7 @@ jobs:
       ALCHEMY_TELEMETRY_DISABLED: "1"
     steps:
       - name: Checkout default branch
-        uses: useblacksmith/checkout@v1 # v6.1.0
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ github.event.repository.default_branch }}
           sparse-checkout: |
@@ -101,7 +101,7 @@ jobs:
   list_closed_previews:
     name: List closed relay previews
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request_target'
-    runs-on: [self-hosted, small]
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 10
     outputs:
       numbers: ${{ steps.list.outputs.numbers }}
@@ -125,7 +125,7 @@ jobs:
     name: Retry teardown for PR ${{ matrix.number }}
     needs: list_closed_previews
     if: github.ref == 'refs/heads/main' && needs.list_closed_previews.outputs.numbers != '[]'
-    runs-on: [self-hosted, small]
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -170,7 +170,7 @@ jobs:
 
       - name: Checkout default branch
         if: steps.eligible.outputs.eligible == 'yes'
-        uses: useblacksmith/checkout@v1 # v6.1.0
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ github.event.repository.default_branch }}
           sparse-checkout: |

@@ -73,7 +73,7 @@ jobs:
   production:
     name: EAS ${{ inputs.profile || 'production' }} ${{ github.event_name == 'push' && 'auto' || inputs.mode }}
     if: github.repository == 'pingdotgg/t3code'
-    runs-on: [self-hosted, small]
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     # Serialize runs so OTAs publish in merge order. GitHub keeps at most one
     # queued job per group, so a burst of merges collapses into one run of the
     # newest commit — intermediate commits don't need their own OTA.
@@ -130,7 +130,7 @@ jobs:
 
       - name: Checkout
         if: steps.expo-token.outputs.present == 'true'
-        uses: useblacksmith/checkout@v1 # v6.1.0
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
           token: ${{ steps.version_app_token.outputs.token || github.token }}
@@ -461,7 +461,7 @@ jobs:
     needs: production
     # Skipped when the production job failed: no store build after a failed OTA.
     if: needs.production.outputs.android_build == 'true'
-    runs-on: [self-hosted, large-compute]
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 60
     concurrency:
       group: mobile-android-store-build
@@ -475,7 +475,7 @@ jobs:
       BUILD_TAG: mobile-android-build/${{ needs.production.outputs.android_version }}/${{ needs.production.outputs.android_fingerprint }}
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1 # v6.1.0
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ needs.production.outputs.android_sha }}
           fetch-depth: 0

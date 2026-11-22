@@ -60,7 +60,7 @@ jobs:
   android:
     name: Android ${{ matrix.abi }}
     if: github.repository == 'pingdotgg/t3code' && (github.event_name != 'workflow_dispatch' || inputs.platform == 'android')
-    runs-on: [self-hosted, large-compute]
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -82,7 +82,7 @@ jobs:
       T3_NATIVE_CLIENT_VERBOSE: "1"
     steps:
       - name: Checkout
-        uses: useblacksmith/checkout@v1 # v6.1.0
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ inputs.ref || github.sha }}
 
