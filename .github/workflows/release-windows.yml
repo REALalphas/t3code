@@ -1,7 +1,7 @@
 name: Release Windows
 
 # Windows is released independently from the full multi-platform release. The
-# workflow always builds the current commit, chooses the next version, and
+# workflow builds the commit that passed CI, chooses the next version, and
 # publishes the installer and updater metadata under a new stable tag.
 on:
   workflow_dispatch:
@@ -15,6 +15,10 @@ on:
           - patch
           - minor
           - major
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
 
 concurrency:
   group: release-windows-${{ github.repository }}
@@ -27,21 +31,26 @@ permissions:
 jobs:
   resolve:
     name: Resolve Windows release version
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
+      ref: ${{ steps.version.outputs.ref }}
       clerk_publishable_key: ${{ steps.public_config.outputs.clerk_publishable_key }}
       clerk_jwt_template: ${{ steps.public_config.outputs.clerk_jwt_template }}
       clerk_cli_oauth_client_id: ${{ steps.public_config.outputs.clerk_cli_oauth_client_id }}
       relay_url: ${{ steps.public_config.outputs.relay_url }}
     steps:
       - name: Checkout release commit
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30af803 # v6.1.0
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
           sparse-checkout: |
             .env.example
@@ -52,7 +61,8 @@ jobs:
         name: Compute next version
         shell: bash
         env:
-          BUMP: ${{ inputs.bump }}
+          BUMP: ${{ inputs.bump || 'patch' }}
+          RELEASE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
 
@@ -101,7 +111,8 @@ jobs:
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "Building Windows release $tag from $GITHUB_SHA."
+          echo "ref=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+          echo "Building Windows release $tag from $RELEASE_SHA."
 
       - id: public_config
         name: Read public build configuration
@@ -129,9 +140,9 @@ jobs:
       T3CODE_TELEMETRY_CHANNEL: ${{ github.repository == 'pingdotgg/t3code' && 'stable' || 'dev' }}
     steps:
       - name: Checkout release commit
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30af803 # v6.1.0
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.resolve.outputs.ref }}
           sparse-checkout: |
             /*
             !/.repos/
@@ -167,7 +178,7 @@ jobs:
     secrets: inherit
     with:
       version: ${{ needs.resolve.outputs.version }}
-      ref: ${{ github.sha }}
+      ref: ${{ needs.resolve.outputs.ref }}
       release_channel: stable
       clerk_publishable_key: ${{ needs.resolve.outputs.clerk_publishable_key }}
       clerk_jwt_template: ${{ needs.resolve.outputs.clerk_jwt_template }}
@@ -192,7 +203,7 @@ jobs:
     secrets: inherit
     with:
       version: ${{ needs.resolve.outputs.version }}
-      ref: ${{ github.sha }}
+      ref: ${{ needs.resolve.outputs.ref }}
       release_channel: stable
       clerk_publishable_key: ${{ needs.resolve.outputs.clerk_publishable_key }}
       clerk_jwt_template: ${{ needs.resolve.outputs.clerk_jwt_template }}
@@ -266,7 +277,7 @@ jobs:
         uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           tag_name: ${{ needs.resolve.outputs.tag }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ needs.resolve.outputs.ref }}
           name: T3 Code Windows v${{ needs.resolve.outputs.version }}
           generate_release_notes: true
           # This release contains Windows assets only. Keep the full
