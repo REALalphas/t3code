@@ -12805,5 +12805,24 @@
     ")"
   ],
   "33d18dda74f6d7b3": "Avbryt automatisk merge för stacken",
-  "012c67c7f1a99e33": "Merga stacken automatiskt"
+  "012c67c7f1a99e33": "Merga stacken automatiskt",
+  "e3d579dee138dba2": "Ikonen återskapas…",
+  "99d730b024cade06": "Återskapa ikonen",
+  "6fffd817251576ba": "Begränsat",
+  "08c389030b722f11": "Begränsat abonnemang",
+  "9f84e3c73bed06ab": "Utkastet skickas till den valda modellen när du pausar skrivandet. Tryck på Tab för att infoga förslaget eller på Esc för att stänga det.",
+  "df4f046a7421bb3a": "Uppdatera de valda miljöerna för att använda automatisk komplettering.",
+  "062e86bea5b79fc0": "Komplettera meddelanden automatiskt",
+  "3a5eff7a3b3d80a7": "Modell för automatisk komplettering",
+  "eea703947ddbcffb": "Välj en modell som ger förslag till utkast.",
+  "52b3479b25cb445c": "Använder miljöns modell för textgenerering.",
+  "7a39685dafd2fdee": "modell för automatisk komplettering",
+  "b2ca0e08f00175b2": "Använd standardmodellen för textgenerering",
+  "1ce12a0b474a5a9e": "Kontext för automatisk komplettering",
+  "14a0d53c14cc2041": "Uppskattat antal token från den senaste konversationen som skickas med varje utkast. Ange 0 för att bara skicka utkastet.",
+  "51ef2e692fec2dec": "kontext för automatisk komplettering",
+  "0296e19b1efa1ddd": "Kontexttoken för automatisk komplettering",
+  "7292356db6c8359c": "Automatisk komplettering i skrivfältet",
+  "7a1948319dca92a0": "beta infogat förslag tab komplettering modell kontext token",
+  "ef5278f9768195da": "Hela perioden"
 }

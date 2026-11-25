@@ -12793,5 +12793,24 @@
     ")"
   ],
   "33d18dda74f6d7b3": "Cancelar la fusión automática de la pila",
-  "012c67c7f1a99e33": "Fusión automática de la pila"
+  "012c67c7f1a99e33": "Fusión automática de la pila",
+  "e3d579dee138dba2": "Regenerando el icono…",
+  "99d730b024cade06": "Regenerar el icono",
+  "6fffd817251576ba": "Limitado",
+  "08c389030b722f11": "Plan limitado",
+  "9f84e3c73bed06ab": "Envía tu borrador al modelo seleccionado cuando hagas una pausa al escribir. Pulsa Tab para insertar la sugerencia o Escape para descartarla.",
+  "df4f046a7421bb3a": "Actualiza los entornos seleccionados para usar el autocompletado.",
+  "062e86bea5b79fc0": "Autocompletar mensajes",
+  "3a5eff7a3b3d80a7": "Modelo de autocompletado",
+  "eea703947ddbcffb": "Elige un modelo para sugerir texto en los borradores.",
+  "52b3479b25cb445c": "Se usa el modelo de generación de texto del entorno.",
+  "7a39685dafd2fdee": "modelo de autocompletado",
+  "b2ca0e08f00175b2": "Usar el modelo de generación de texto predeterminado",
+  "1ce12a0b474a5a9e": "Contexto del autocompletado",
+  "14a0d53c14cc2041": "Número estimado de tokens de la conversación reciente que se envían con cada borrador. Usa 0 para enviar solo el borrador.",
+  "51ef2e692fec2dec": "contexto del autocompletado",
+  "0296e19b1efa1ddd": "Tokens de contexto del autocompletado",
+  "7292356db6c8359c": "Autocompletado en el editor",
+  "7a1948319dca92a0": "beta sugerencia en línea tab autocompletado modelo contexto tokens",
+  "ef5278f9768195da": "Todo el periodo"
 }

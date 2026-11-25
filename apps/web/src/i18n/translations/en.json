@@ -12807,5 +12807,24 @@
     ")"
   ],
   "33d18dda74f6d7b3": "Cancel stack auto-merge",
-  "012c67c7f1a99e33": "Auto-merge stack"
+  "012c67c7f1a99e33": "Auto-merge stack",
+  "e3d579dee138dba2": "Regenerating icon…",
+  "99d730b024cade06": "Regenerate icon",
+  "6fffd817251576ba": "Limited",
+  "08c389030b722f11": "Limited plan",
+  "9f84e3c73bed06ab": "Send your draft to the selected model after a pause in typing. Press Tab to insert the suggestion or Escape to dismiss it.",
+  "df4f046a7421bb3a": "Update the selected environments to use autocomplete.",
+  "062e86bea5b79fc0": "Autocomplete messages",
+  "3a5eff7a3b3d80a7": "Autocomplete model",
+  "eea703947ddbcffb": "Choose a model for draft suggestions.",
+  "52b3479b25cb445c": "Using the environment’s text generation model.",
+  "7a39685dafd2fdee": "autocomplete model",
+  "b2ca0e08f00175b2": "Use the default text generation model",
+  "1ce12a0b474a5a9e": "Autocomplete context",
+  "14a0d53c14cc2041": "Estimated tokens of recent conversation sent with each draft. Set to 0 to send only the draft.",
+  "51ef2e692fec2dec": "autocomplete context",
+  "0296e19b1efa1ddd": "Autocomplete context tokens",
+  "7292356db6c8359c": "Composer autocomplete",
+  "7a1948319dca92a0": "beta inline ghost text tab completion model context tokens",
+  "ef5278f9768195da": "All time"
 }

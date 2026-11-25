@@ -12798,5 +12798,24 @@
     ")"
   ],
   "33d18dda74f6d7b3": "Cancelar merge automático da pilha",
-  "012c67c7f1a99e33": "Merge automático da pilha"
+  "012c67c7f1a99e33": "Merge automático da pilha",
+  "e3d579dee138dba2": "Recriando ícone…",
+  "99d730b024cade06": "Recriar ícone",
+  "6fffd817251576ba": "Limitado",
+  "08c389030b722f11": "Plano limitado",
+  "9f84e3c73bed06ab": "Envie o rascunho ao modelo selecionado após uma pausa na digitação. Pressione Tab para inserir a sugestão ou Esc para dispensá-la.",
+  "df4f046a7421bb3a": "Atualize os ambientes selecionados para usar o preenchimento automático.",
+  "062e86bea5b79fc0": "Preencher mensagens automaticamente",
+  "3a5eff7a3b3d80a7": "Modelo de preenchimento automático",
+  "eea703947ddbcffb": "Escolha um modelo para sugerir texto nos rascunhos.",
+  "52b3479b25cb445c": "Usando o modelo de geração de texto do ambiente.",
+  "7a39685dafd2fdee": "modelo de preenchimento automático",
+  "b2ca0e08f00175b2": "Usar o modelo de geração de texto padrão",
+  "1ce12a0b474a5a9e": "Contexto do preenchimento automático",
+  "14a0d53c14cc2041": "Número estimado de tokens da conversa recente enviados com cada rascunho. Use 0 para enviar apenas o rascunho.",
+  "51ef2e692fec2dec": "contexto do preenchimento automático",
+  "0296e19b1efa1ddd": "Tokens de contexto do preenchimento automático",
+  "7292356db6c8359c": "Preenchimento automático no editor",
+  "7a1948319dca92a0": "beta sugestão em linha tab preenchimento modelo contexto tokens",
+  "ef5278f9768195da": "Todo o período"
 }

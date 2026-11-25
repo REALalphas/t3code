@@ -12798,5 +12798,24 @@
     ")"
   ],
   "33d18dda74f6d7b3": "Annuler la fusion automatique de la pile",
-  "012c67c7f1a99e33": "Fusion automatique de la pile"
+  "012c67c7f1a99e33": "Fusion automatique de la pile",
+  "e3d579dee138dba2": "Régénération de l’icône…",
+  "99d730b024cade06": "Régénérer l’icône",
+  "6fffd817251576ba": "Limité",
+  "08c389030b722f11": "Forfait limité",
+  "9f84e3c73bed06ab": "Le brouillon est envoyé au modèle sélectionné après une pause dans la saisie. Appuyez sur Tab pour insérer la suggestion ou sur Échap pour la masquer.",
+  "df4f046a7421bb3a": "Mettez à jour les environnements sélectionnés pour utiliser la saisie semi-automatique.",
+  "062e86bea5b79fc0": "Compléter automatiquement les messages",
+  "3a5eff7a3b3d80a7": "Modèle de saisie semi-automatique",
+  "eea703947ddbcffb": "Choisissez un modèle pour les suggestions de brouillon.",
+  "52b3479b25cb445c": "Le modèle de génération de texte de l’environnement est utilisé.",
+  "7a39685dafd2fdee": "modèle de saisie semi-automatique",
+  "b2ca0e08f00175b2": "Utiliser le modèle de génération de texte par défaut",
+  "1ce12a0b474a5a9e": "Contexte de saisie semi-automatique",
+  "14a0d53c14cc2041": "Nombre estimé de jetons des échanges récents envoyés avec chaque brouillon. Saisissez 0 pour envoyer uniquement le brouillon.",
+  "51ef2e692fec2dec": "contexte de saisie semi-automatique",
+  "0296e19b1efa1ddd": "Jetons de contexte de saisie semi-automatique",
+  "7292356db6c8359c": "Saisie semi-automatique dans l’éditeur",
+  "7a1948319dca92a0": "bêta suggestion intégrée tab complétion modèle contexte jetons",
+  "ef5278f9768195da": "Depuis le début"
 }

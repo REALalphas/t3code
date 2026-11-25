@@ -12798,5 +12798,24 @@
     ")"
   ],
   "33d18dda74f6d7b3": "Auto-Merge für Stack abbrechen",
-  "012c67c7f1a99e33": "Auto-Merge für Stack"
+  "012c67c7f1a99e33": "Auto-Merge für Stack",
+  "e3d579dee138dba2": "Symbol wird neu generiert …",
+  "99d730b024cade06": "Symbol neu generieren",
+  "6fffd817251576ba": "Begrenzt",
+  "08c389030b722f11": "Tarif mit Beschränkungen",
+  "9f84e3c73bed06ab": "Sende deinen Entwurf nach einer Tipp-Pause an das ausgewählte Modell. Drücke Tab, um den Vorschlag einzufügen, oder Escape, um ihn auszublenden.",
+  "df4f046a7421bb3a": "Aktualisiere die ausgewählten Umgebungen, um die Autovervollständigung zu nutzen.",
+  "062e86bea5b79fc0": "Nachrichten automatisch vervollständigen",
+  "3a5eff7a3b3d80a7": "Modell für die Autovervollständigung",
+  "eea703947ddbcffb": "Wähle ein Modell für Entwurfsvorschläge.",
+  "52b3479b25cb445c": "Das Textgenerierungsmodell der Umgebung wird verwendet.",
+  "7a39685dafd2fdee": "Modell für die Autovervollständigung",
+  "b2ca0e08f00175b2": "Standardmodell für die Textgenerierung verwenden",
+  "1ce12a0b474a5a9e": "Kontext der Autovervollständigung",
+  "14a0d53c14cc2041": "Geschätzte Anzahl der Tokens aus dem letzten Gesprächsverlauf, die mit jedem Entwurf gesendet werden. Bei 0 wird nur der Entwurf gesendet.",
+  "51ef2e692fec2dec": "Kontext der Autovervollständigung",
+  "0296e19b1efa1ddd": "Kontext-Tokens für die Autovervollständigung",
+  "7292356db6c8359c": "Autovervollständigung bei der Eingabe",
+  "7a1948319dca92a0": "Beta Vorschlag Tab Vervollständigung Modell Kontext Tokens",
+  "ef5278f9768195da": "Gesamter Zeitraum"
 }
