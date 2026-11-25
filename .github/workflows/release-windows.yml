@@ -1,0 +1,280 @@
+name: Release Windows
+
+# Windows is released independently from the full multi-platform release. The
+# workflow always builds the current commit, chooses the next version, and
+# publishes the installer and updater metadata under a new stable tag.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version component to increment
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+concurrency:
+  group: release-windows-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  resolve:
+    name: Resolve Windows release version
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      clerk_publishable_key: ${{ steps.public_config.outputs.clerk_publishable_key }}
+      clerk_jwt_template: ${{ steps.public_config.outputs.clerk_jwt_template }}
+      clerk_cli_oauth_client_id: ${{ steps.public_config.outputs.clerk_cli_oauth_client_id }}
+      relay_url: ${{ steps.public_config.outputs.relay_url }}
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          sparse-checkout: |
+            .env.example
+            apps/desktop/package.json
+          sparse-checkout-cone-mode: false
+
+      - id: version
+        name: Compute next version
+        shell: bash
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+
+          current="$(node -p "require('./apps/desktop/package.json').version")"
+          latest_tag="$(git tag --list 'v[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
+          latest="${latest_tag#v}"
+          version="$(node - "$current" "$latest" "${BUMP:-patch}" <<'EOF'
+          const [current, latest, bump] = process.argv.slice(2);
+          const parse = (value) => {
+            const match = /^(\d+)\.(\d+)\.(\d+)/u.exec(value ?? "");
+            return match ? match.slice(1).map(Number) : undefined;
+          };
+          const versions = [parse(current), parse(latest)].filter(
+            (value) => value !== undefined,
+          );
+          if (versions.length === 0) throw new Error("No valid package version or stable tag found.");
+          const base = versions.reduce((best, value) =>
+            value[0] > best[0] ||
+            (value[0] === best[0] &&
+              (value[1] > best[1] || (value[1] === best[1] && value[2] > best[2])))
+              ? value
+              : best,
+          );
+          const next = [...base];
+          if (bump === "major") {
+            next[0] += 1;
+            next[1] = 0;
+            next[2] = 0;
+          } else if (bump === "minor") {
+            next[1] += 1;
+            next[2] = 0;
+          } else if (bump === "patch") {
+            next[2] += 1;
+          } else {
+            throw new Error(`Unsupported version bump: ${bump}`);
+          }
+          console.log(next.join("."));
+          EOF
+          )"
+          tag="v$version"
+
+          if git show-ref --tags --verify --quiet "refs/tags/$tag"; then
+            echo "The computed tag $tag already exists; rerun after refreshing the repository." >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Building Windows release $tag from $GITHUB_SHA."
+
+      - id: public_config
+        name: Read public build configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          value() { sed -n "s/^T3CODE_$1=//p" .env.example | head -n 1; }
+          {
+            echo "clerk_publishable_key=$(value CLERK_PUBLISHABLE_KEY)"
+            echo "clerk_jwt_template=$(value CLERK_JWT_TEMPLATE)"
+            echo "clerk_cli_oauth_client_id=$(value CLERK_CLI_OAUTH_CLIENT_ID)"
+            echo "relay_url=$(sed -n 's/^T3CODE_RELAY_URL=//p' .env.example | head -n 1)"
+          } >> "$GITHUB_OUTPUT"
+
+  build_bundle:
+    name: Build release JS bundle
+    needs: [resolve]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      T3CODE_CLERK_PUBLISHABLE_KEY: ${{ needs.resolve.outputs.clerk_publishable_key }}
+      T3CODE_CLERK_JWT_TEMPLATE: ${{ needs.resolve.outputs.clerk_jwt_template }}
+      T3CODE_CLERK_CLI_OAUTH_CLIENT_ID: ${{ needs.resolve.outputs.clerk_cli_oauth_client_id }}
+      T3CODE_RELAY_URL: ${{ needs.resolve.outputs.relay_url }}
+      T3CODE_TELEMETRY_CHANNEL: ${{ github.repository == 'pingdotgg/t3code' && 'stable' || 'dev' }}
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30af803 # v6.1.0
+        with:
+          ref: ${{ github.sha }}
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
+
+      - name: Setup dependencies
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          install-args: --filter=t3... --filter=@t3tools/web... --filter=@t3tools/desktop... --filter=@t3tools/scripts...
+
+      - name: Align package versions
+        run: |
+          node scripts/update-release-package-versions.ts "${{ needs.resolve.outputs.version }}"
+          cp .env.example .env
+
+      - name: Build JS bundle
+        run: vp run build:desktop:bundle
+
+      - name: Upload JS bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: js-bundle
+          path: |
+            apps/server/dist
+            apps/desktop/dist-electron
+          if-no-files-found: error
+          retention-days: 1
+
+  desktop_linux_x64:
+    name: Build Linux CLI runtime
+    needs: [resolve, build_bundle]
+    uses: ./.github/workflows/release-desktop.yml
+    secrets: inherit
+    with:
+      version: ${{ needs.resolve.outputs.version }}
+      ref: ${{ github.sha }}
+      release_channel: stable
+      clerk_publishable_key: ${{ needs.resolve.outputs.clerk_publishable_key }}
+      clerk_jwt_template: ${{ needs.resolve.outputs.clerk_jwt_template }}
+      clerk_cli_oauth_client_id: ${{ needs.resolve.outputs.clerk_cli_oauth_client_id }}
+      relay_url: ${{ needs.resolve.outputs.relay_url }}
+      # release-desktop.yml's Windows job waits for the exact `Build Linux x64`
+      # job name before embedding this archive as the WSL runtime.
+      label: Linux x64
+      runner: ubuntu-24.04
+      platform: linux
+      target: AppImage
+      arch: x64
+      rust_target: x86_64-unknown-linux-gnu
+      resource_key: linux-x64
+      cli_archive: true
+      relay_client_tracing: false
+
+  desktop_win_x64:
+    name: Build Windows x64
+    needs: [resolve, build_bundle]
+    uses: ./.github/workflows/release-desktop.yml
+    secrets: inherit
+    with:
+      version: ${{ needs.resolve.outputs.version }}
+      ref: ${{ github.sha }}
+      release_channel: stable
+      clerk_publishable_key: ${{ needs.resolve.outputs.clerk_publishable_key }}
+      clerk_jwt_template: ${{ needs.resolve.outputs.clerk_jwt_template }}
+      clerk_cli_oauth_client_id: ${{ needs.resolve.outputs.clerk_cli_oauth_client_id }}
+      relay_url: ${{ needs.resolve.outputs.relay_url }}
+      label: Windows x64
+      runner: ubuntu-24.04
+      platform: win
+      target: nsis
+      arch: x64
+      rust_target: x86_64-pc-windows-msvc
+      resource_key: win32-x64
+      cli_archive: false
+      relay_client_tracing: false
+
+  release:
+    name: Publish Windows release
+    needs: [resolve, desktop_linux_x64, desktop_win_x64]
+    if: ${{ !failure() && !cancelled() && needs.desktop_win_x64.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Download Windows package
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: desktop-win-x64
+          path: release-assets
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          manifests=(release-assets/*-win-x64.yml)
+          if [[ ${#manifests[@]} -ne 1 ]]; then
+            echo "Expected exactly one Windows updater manifest, found ${#manifests[@]}." >&2
+            exit 1
+          fi
+          mv "${manifests[0]}" release-assets/latest.yml
+          rm -f release-assets/builder-debug*.yml
+          files=(release-assets/*.exe release-assets/*.blockmap release-assets/latest.yml)
+          if [[ ${#files[@]} -lt 2 ]]; then
+            echo "The Windows artifact is missing an installer or updater metadata." >&2
+            exit 1
+          fi
+          printf 'Release assets:\n%s\n' "${files[@]}"
+
+      - name: Ensure release tag is still free
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "The release tag $RELEASE_TAG was created while this run was building." >&2
+            exit 1
+          fi
+
+      - name: Upload Windows release artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-release-${{ needs.resolve.outputs.version }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
+        with:
+          tag_name: ${{ needs.resolve.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: T3 Code Windows v${{ needs.resolve.outputs.version }}
+          generate_release_notes: true
+          # This release contains Windows assets only. Keep the full
+          # multi-platform release as the repository's Latest release.
+          make_latest: false
+          files: |
+            release-assets/*.exe
+            release-assets/*.blockmap
+            release-assets/latest.yml
+          fail_on_unmatched_files: true
+          token: ${{ github.token }}
