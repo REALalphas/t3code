@@ -45,6 +45,7 @@ function storedProject(
     faviconPath: overrides.faviconPath ?? null,
     projectIcon: overrides.projectIcon ?? null,
     scripts: [],
+    trackedFolders: [],
     pinnedAt: null,
     archivedAt: null,
     createdAt: "2026-06-20T00:00:00.000Z",
@@ -68,7 +69,7 @@ function makeHarness(
   let gets = 0;
   const project = options.project === undefined ? storedProject() : options.project;
   const layerProjects = Layer.mock(ProjectStore.ProjectStoreV2)({
-    get: (_requestedProjectId: ProjectId) => {
+    get: (_requestedProjectId: ProjectId, _options?: { readonly includeDeleted?: boolean }) => {
       gets += 1;
       if (project === null) return Effect.succeedNone;
       const current =

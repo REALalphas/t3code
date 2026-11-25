@@ -70,7 +70,7 @@ vp run dev:client:reset
 Run that reset once after installing or changing the Uniwind dependency patch. Cached transforms
 can otherwise reference its previous pnpm package path. Ordinary Metro starts still keep the cache.
 
-Component edits use Fast Refresh. See [mobile development lifecycle](../../docs/internals/mobile-development.md)
+Component edits use Fast Refresh. See [mobile development lifecycle](../../docs/internals/13_mobile-development.md)
 before changing runtime ownership or refresh behavior.
 
 Build and run the local iOS dev client:
@@ -127,6 +127,8 @@ node ../../scripts/mobile-native-static-check.ts
 ```
 
 The native lint task runs SwiftLint for Swift plus ktlint and detekt for Kotlin. Missing native tools are reported as warnings and skipped locally. CI installs the default toolset from `apps/mobile/Brewfile` before running the native checks.
+
+The fork's [Mobile Showcase Screenshots workflow](../../.github/workflows/mobile-showcase-screenshots.yml) captures Android screenshots on GitHub-hosted Ubuntu with a KVM-accelerated emulator.
 
 ## EAS Builds
 

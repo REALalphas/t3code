@@ -1,18 +1,20 @@
 import type {
   ProviderInstanceId,
   ServerProvider,
+  ServerProviderUsageLimits,
   ServerProviderUsageWindow,
   UsageLimitSourceSnapshots,
-  UsageLimitsReport,
 } from "@t3tools/contracts";
 import {
-  collectProviderUsageLimits,
-  formatDuration,
   type LimitPace,
-  limitsNotice,
+  type LimitPoolWindow,
   paceOf,
+  paceRemainingPercent,
   remainingPercent,
 } from "@t3tools/shared/usageLimits";
+import { formatDuration, limitsNotice } from "@t3tools/shared/usageLimitsCopy";
+import { Link } from "@tanstack/react-router";
+import { msg, useGT, useLocale, useMessages } from "gt-react";
 import type { ReactNode } from "react";
 
 import { usePrimarySettings } from "../../hooks/useSettings";
@@ -24,15 +26,17 @@ import { formatUpcomingTimestamp } from "../../timestampFormat";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { formatContextWindowCompactionMessage } from "./compaction.logic";
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
+import { nextPoolReset, poolSources, resolveThreadDetailsLimits } from "./ThreadDetailsUsage.logic";
 
 const PACE_LABEL: Record<LimitPace, string> = {
-  ahead: "Ahead of pace",
-  on: "On pace",
-  under: "Under pace",
+  ahead: msg("Ahead of pace"),
+  on: msg("On pace"),
+  under: msg("Under pace"),
 };
 
 export interface ThreadDetailsUsageInput {
   readonly providerInstanceId: ProviderInstanceId | null;
+  readonly model: string | null;
   readonly providers: readonly ServerProvider[];
   readonly sources: UsageLimitSourceSnapshots;
   readonly contextWindow: ContextWindowSnapshot | null;
@@ -40,179 +44,46 @@ export interface ThreadDetailsUsageInput {
 
 type UsageTone = "error" | "warning" | null;
 
-interface ThreadDetailsResolvedLimits {
-  readonly windows: readonly ServerProviderUsageWindow[];
-  readonly isLimited?: boolean;
-  readonly notice?: string | null;
+function limitTone(left: number): UsageTone {
+  if (left <= 10) return "error";
+  if (left <= 20) return "warning";
+  return null;
 }
 
-function resolveThreadDetailsLimits(
-  report: UsageLimitsReport | null,
-  providerInstanceId: ProviderInstanceId | null,
-  providers: readonly ServerProvider[],
-): ThreadDetailsResolvedLimits | null {
-  if (providerInstanceId === null) return null;
-
-  const instanceLimits =
-    report?.accounts.find((entry) => entry.instanceId === providerInstanceId)?.limits ??
-    providers.find((provider) => provider.instanceId === providerInstanceId)?.usageLimits;
-
-  // If the instance itself has native, working limits, prefer them.
-  if (instanceLimits && !limitsNotice(instanceLimits) && instanceLimits.windows.length > 0) {
-    return { windows: instanceLimits.windows, isLimited: false, notice: null };
-  }
-
-  // Otherwise, look across accounts in the pool for this driver
-  const driver = providers.find((p) => p.instanceId === providerInstanceId)?.driver;
-  const pooledAccounts = (report?.accounts ?? []).filter((account) => {
-    if (driver && account.driver !== driver) return false;
-    return Boolean(
-      account.limits && account.limits.windows.length > 0 && !account.limits.unavailable?.reason,
-    );
-  });
-
-  // 1. Accounts with a 5-hour window
-  const accountsWith5h = pooledAccounts
-    .map((acc) => {
-      const sessionWindow = acc.limits.windows.find(
-        (w) => w.kind === "session" || (w.windowDurationMins ?? 0) <= 300,
-      );
-      if (!sessionWindow) return null;
-      const weeklyWindow = acc.limits.windows.find(
-        (w) =>
-          w.kind === "weekly" ||
-          ((w.windowDurationMins ?? 0) > 300 && (w.windowDurationMins ?? 0) <= 10080),
-      );
-      const sessionRemaining = remainingPercent(sessionWindow);
-      const weeklyRemaining = weeklyWindow ? remainingPercent(weeklyWindow) : null;
-      return {
-        sessionWindow,
-        weeklyWindow,
-        sessionRemaining,
-        weeklyRemaining,
-      };
-    })
-    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-
-  const nonZero5h = accountsWith5h.filter((entry) => entry.sessionRemaining > 0);
-
-  // Берём минимальный пятичасового и у него уже берём недельный (показываем вместе)
-  if (nonZero5h.length > 0) {
-    nonZero5h.sort((a, b) => {
-      if (a.sessionRemaining !== b.sessionRemaining) {
-        return a.sessionRemaining - b.sessionRemaining;
-      }
-      if (a.weeklyRemaining !== null && b.weeklyRemaining !== null) {
-        return a.weeklyRemaining - b.weeklyRemaining;
-      }
-      return 0;
-    });
-    const chosen = nonZero5h[0];
-    if (chosen) {
-      const windows = [chosen.sessionWindow, chosen.weeklyWindow].filter(
-        (w): w is ServerProviderUsageWindow => Boolean(w),
-      );
-      return { windows, isLimited: false, notice: null };
-    }
-  }
-
-  // Если все по нулям, то у месячного берём максимальный (если ток месячный у аккаунта, то пишем Limited)
-  const accountsWithMonthly = pooledAccounts
-    .map((acc) => {
-      const monthlyWindow = acc.limits.windows.find(
-        (w) => w.kind === "monthly" || (w.windowDurationMins ?? 0) > 10080,
-      );
-      if (!monthlyWindow) return null;
-      const monthlyRemaining = remainingPercent(monthlyWindow);
-      const onlyMonthly = acc.limits.windows.every(
-        (w) => w.kind === "monthly" || w.id === monthlyWindow.id,
-      );
-      return {
-        monthlyWindow,
-        monthlyRemaining,
-        onlyMonthly,
-      };
-    })
-    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-
-  if (accountsWithMonthly.length > 0) {
-    accountsWithMonthly.sort((a, b) => b.monthlyRemaining - a.monthlyRemaining);
-    const chosen = accountsWithMonthly[0];
-    if (chosen) {
-      return {
-        windows: [chosen.monthlyWindow],
-        isLimited: chosen.onlyMonthly,
-        notice: null,
-      };
-    }
-  }
-
-  // Если нет месячных, но есть 5-часовые (все с 0% остатка), показываем 5-часовой и недельный
-  if (accountsWith5h.length > 0) {
-    accountsWith5h.sort((a, b) => {
-      const resetA = a.sessionWindow.resetsAt
-        ? Date.parse(a.sessionWindow.resetsAt)
-        : Number.POSITIVE_INFINITY;
-      const resetB = b.sessionWindow.resetsAt
-        ? Date.parse(b.sessionWindow.resetsAt)
-        : Number.POSITIVE_INFINITY;
-      return resetA - resetB;
-    });
-    const chosen = accountsWith5h[0];
-    if (chosen) {
-      const windows = [chosen.sessionWindow, chosen.weeklyWindow].filter(
-        (w): w is ServerProviderUsageWindow => Boolean(w),
-      );
-      return { windows, isLimited: false, notice: null };
-    }
-  }
-
-  // Fallback к стандартному поведению инстанса
-  if (!instanceLimits) return null;
-  const notice = limitsNotice(instanceLimits);
-  return { windows: instanceLimits.windows, isLimited: false, notice };
-}
-
-/** The selected provider's limit windows. Each row reads as room left. */
+/** The selected provider's limit windows. Each row reads as room left and opens the usage page. */
 export function ThreadDetailsUsage({
   providerInstanceId,
+  model,
   providers,
   sources,
 }: Omit<ThreadDetailsUsageInput, "contextWindow">) {
+  const gt = useGT();
   const nowMinute = useNowMinute();
   const now = Date.parse(`${nowMinute}:00Z`);
-  const report =
-    providerInstanceId !== null
-      ? collectProviderUsageLimits(providerInstanceId, providers, sources, now)
-      : null;
-
-  const resolved = resolveThreadDetailsLimits(report, providerInstanceId, providers);
+  const resolved = resolveThreadDetailsLimits(providerInstanceId, model, providers, sources, now);
   if (!resolved) return null;
 
   return (
     <ThreadDetailsSection
       headingId="thread-details-usage-heading"
-      title="Usage limits"
+      title={gt("Usage limits")}
       showHeading={false}
     >
       <div className="grid grid-cols-[auto_minmax(3rem,1fr)_auto] gap-x-3 text-xs">
-        {resolved.notice ? (
-          <UsageRow
-            label="Limits"
-            fill={null}
-            tone={null}
-            value="Unavailable"
-            tooltip={<span className="text-foreground">{resolved.notice}</span>}
-          />
+        {resolved.kind === "pool" ? (
+          resolved.windows.map((window) => <PoolRow key={window.id} window={window} now={now} />)
+        ) : resolved.kind === "instance" ? (
+          <InstanceRows limits={resolved.limits} now={now} />
         ) : (
           <>
             {resolved.isLimited ? (
               <UsageRow
-                label="Limits"
+                label={gt("Limits", { $context: "usage limits row label" })}
                 fill={null}
                 tone="warning"
-                value="Limited"
-                tooltip={<span className="text-foreground">Limited plan</span>}
+                value={gt("Limited")}
+                tooltip={<span className="text-foreground">{gt("Limited plan")}</span>}
+                opensUsage
               />
             ) : null}
             {resolved.windows.map((window) => (
@@ -223,6 +94,31 @@ export function ThreadDetailsUsage({
       </div>
     </ThreadDetailsSection>
   );
+}
+
+function InstanceRows({
+  limits,
+  now,
+}: {
+  readonly limits: ServerProviderUsageLimits;
+  readonly now: number;
+}) {
+  const gt = useGT();
+  const m = useMessages();
+  const notice = limitsNotice(limits, m);
+  if (notice) {
+    return (
+      <UsageRow
+        label={gt("Limits", { $context: "usage limits row label" })}
+        fill={null}
+        tone={null}
+        value={gt("Unavailable")}
+        tooltip={<span className="text-foreground">{notice}</span>}
+        opensUsage
+      />
+    );
+  }
+  return limits.windows.map((window) => <LimitRow key={window.id} window={window} now={now} />);
 }
 
 /** The thread's context window. The bar fills as context is used; the tick marks auto-compaction. */
@@ -237,16 +133,19 @@ export function ThreadDetailsContext({ usage }: { readonly usage: ContextWindowS
     maxTokens !== null && threshold !== null && threshold > 0 && threshold < maxTokens
       ? (threshold / maxTokens) * 100
       : null;
+  const gt = useGT();
+  const m = useMessages();
+  const locale = useLocale();
   const usedTokens = formatContextWindowTokens(usage.usedTokens);
   return (
     <ThreadDetailsSection
       headingId="thread-details-context-heading"
-      title="Context window"
+      title={gt("Context window")}
       showHeading={false}
     >
       <div className="grid grid-cols-[auto_minmax(3rem,1fr)_auto] gap-x-3 text-xs">
         <UsageRow
-          label="Context"
+          label={gt("Context", { $context: "context window row label" })}
           fill={used}
           tone={used === null ? null : used >= 90 ? "error" : used >= 80 ? "warning" : null}
           tick={tick}
@@ -256,21 +155,29 @@ export function ThreadDetailsContext({ usage }: { readonly usage: ContextWindowS
               ? `${usedTokens} / ${formatContextWindowTokens(maxTokens)}`
               : usedTokens
           }
-          ariaValue={used !== null ? `${used}% used` : `${usedTokens} tokens used`}
+          ariaValue={
+            used !== null
+              ? gt("{used}% used", { used })
+              : gt("{usedTokens} tokens used", { usedTokens })
+          }
           tooltip={
             <>
               <span className="text-foreground">
-                {used !== null ? `Context: ${used}% used` : `Context: ${usedTokens} tokens used`}
+                {used !== null
+                  ? gt("Context: {used}% used", { used })
+                  : gt("Context: {usedTokens} tokens used", { usedTokens })}
               </span>
               {maxTokens !== null ? (
                 <span className="text-muted-foreground">
-                  {usage.usedTokens.toLocaleString("en-US")} of {maxTokens.toLocaleString("en-US")}{" "}
-                  tokens
+                  {gt("{used} of {max} tokens", {
+                    used: usage.usedTokens.toLocaleString(locale),
+                    max: maxTokens.toLocaleString(locale),
+                  })}
                 </span>
               ) : null}
               {threshold !== null && threshold > 0 ? (
                 <span className="text-muted-foreground">
-                  {formatContextWindowCompactionMessage(threshold)}
+                  {formatContextWindowCompactionMessage(threshold, m)}
                 </span>
               ) : null}
             </>
@@ -288,36 +195,107 @@ function LimitRow({
   readonly window: ServerProviderUsageWindow;
   readonly now: number;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const timestampFormat = usePrimarySettings((settings) => settings.timestampFormat);
   const left = remainingPercent(window);
   const pace = paceOf(window, now);
+  const timeLeft = paceRemainingPercent(window, now);
   const resetsAt = window.resetsAt ? Date.parse(window.resetsAt) : Number.NaN;
   return (
     <UsageRow
       label={window.label}
       fill={left}
-      tone={left <= 10 ? "error" : left <= 20 ? "warning" : null}
+      tone={limitTone(left)}
+      tick={timeLeft}
       value={`${left}%`}
-      ariaValue={`${left}% left`}
+      ariaValue={gt("{left}% left", { left })}
+      opensUsage
       tooltip={
         <>
           <span className="text-foreground">
-            {window.label}: {left}% left
+            {gt("{label}: {left}% left", { label: window.label, left })}
           </span>
-          {window.resetsAt && resetsAt > now ? (
+          {pace && timeLeft !== null ? (
             <span className="text-muted-foreground">
-              Resets in {formatDuration(resetsAt - now)} ·{" "}
-              {formatUpcomingTimestamp(window.resetsAt, timestampFormat, now)}
+              {m(PACE_LABEL[pace])} · {gt("{timeLeft}% of the window left", { timeLeft })}
             </span>
           ) : null}
-          {pace ? <span className="text-muted-foreground">{PACE_LABEL[pace]}</span> : null}
+          {window.resetsAt && resetsAt > now ? (
+            <span className="text-muted-foreground">
+              {gt("Resets in {duration} · {time}", {
+                duration: formatDuration(resetsAt - now, m),
+                time: formatUpcomingTimestamp(window.resetsAt, timestampFormat, now, undefined, m),
+              })}
+            </span>
+          ) : null}
         </>
       }
     />
   );
 }
 
-/** One label, hairline, and value row; the whole row opens the details tooltip. */
+function PoolRow({ window, now }: { readonly window: LimitPoolWindow; readonly now: number }) {
+  const gt = useGT();
+  const m = useMessages();
+  const timestampFormat = usePrimarySettings((settings) => settings.timestampFormat);
+  const left = window.remainingPercent;
+  const accounts = window.members.length;
+  const from = poolSources(window);
+  const sourceLabels = [...from.hubs, ...(from.signedIn ? [gt("Signed-in accounts")] : [])];
+  const next = nextPoolReset(window, now);
+  const resetsAt = next?.member.window.resetsAt;
+  const reset =
+    next && resetsAt
+      ? {
+          duration: formatDuration(next.at - now, m),
+          time: formatUpcomingTimestamp(resetsAt, timestampFormat, now, undefined, m),
+        }
+      : null;
+  return (
+    <UsageRow
+      label={window.label}
+      fill={left}
+      tone={limitTone(left)}
+      value={`${left}%`}
+      ariaValue={gt("{left}% left", { left })}
+      opensUsage
+      tooltip={
+        <>
+          <span className="text-foreground">
+            {accounts > 1
+              ? gt("{label}: {left}% left across {accounts} accounts", {
+                  label: window.label,
+                  left,
+                  accounts,
+                })
+              : gt("{label}: {left}% left", { label: window.label, left })}
+          </span>
+          {window.pace ? (
+            <span className="text-muted-foreground">{m(PACE_LABEL[window.pace])}</span>
+          ) : null}
+          {next && reset ? (
+            <span className="text-muted-foreground">
+              {accounts > 1
+                ? gt("+{percent}% in {duration} · {time}", {
+                    percent: next.restoresPercent,
+                    ...reset,
+                  })
+                : gt("Resets in {duration} · {time}", reset)}
+            </span>
+          ) : null}
+          {sourceLabels.length > 0 ? (
+            <span className="text-muted-foreground">
+              {gt("From {sources}", { sources: sourceLabels.join(", ") })}
+            </span>
+          ) : null}
+        </>
+      }
+    />
+  );
+}
+
+/** One label, hairline, and value row; the whole row opens the details tooltip. With `opensUsage` it links to the usage page. */
 function UsageRow({
   label,
   fill,
@@ -327,6 +305,7 @@ function UsageRow({
   ariaValue = value,
   tooltip,
   muted = false,
+  opensUsage = false,
 }: {
   readonly label: string;
   /** Bar fill from 0 to 100. Null hides the bar. */
@@ -338,19 +317,28 @@ function UsageRow({
   readonly ariaValue?: string;
   readonly tooltip: ReactNode;
   readonly muted?: boolean;
+  readonly opensUsage?: boolean;
 }) {
+  const gt = useGT();
+  const rowProps = {
+    "aria-label": gt("{label}: {value}", { label, value: ariaValue }),
+    className: cn(
+      "col-span-3 grid h-6 grid-cols-subgrid items-center rounded-lg px-2.5 outline-none hover:bg-black/[0.035] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-popup-open:bg-black/[0.035] dark:hover:bg-white/[0.08] dark:data-popup-open:bg-white/[0.08]",
+      opensUsage
+        ? "group cursor-pointer active:bg-black/[0.06] dark:active:bg-white/[0.12]"
+        : "cursor-default",
+    ),
+  };
   return (
     <Tooltip>
       <TooltipTrigger
         render={
-          <div
-            tabIndex={0}
-            aria-label={`${label}: ${ariaValue}`}
-            className="col-span-3 grid h-6 cursor-default grid-cols-subgrid items-center rounded-lg px-2.5 outline-none hover:bg-black/[0.035] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-popup-open:bg-black/[0.035] dark:hover:bg-white/[0.08] dark:data-popup-open:bg-white/[0.08]"
-          />
+          opensUsage ? <Link to="/usage" {...rowProps} /> : <div tabIndex={0} {...rowProps} />
         }
       >
-        <span className="max-w-28 truncate text-muted-foreground">{label}</span>
+        <span className="max-w-28 truncate text-muted-foreground group-hover:text-foreground">
+          {label}
+        </span>
         {fill !== null ? (
           <span className="relative h-[3px] rounded-full bg-muted-foreground/30 dark:bg-muted-foreground/20">
             {fill > 0 ? (
@@ -371,8 +359,8 @@ function UsageRow({
             {tick !== null ? (
               <span
                 aria-hidden
-                className="absolute -top-[3px] h-[9px] w-px -translate-x-1/2 bg-foreground/60"
-                style={{ left: `${tick}%` }}
+                className="absolute -top-[3px] h-[9px] w-px -translate-x-1/2 bg-foreground/75"
+                style={{ left: `clamp(0.5px, ${tick}%, calc(100% - 0.5px))` }}
               />
             ) : null}
           </span>
@@ -396,7 +384,10 @@ function UsageRow({
       </TooltipTrigger>
       {/* Rows sit 8px inside the card; clear its edge instead of overlapping it. */}
       <TooltipPopup side="left" sideOffset={16}>
-        <div className="flex flex-col gap-0.5">{tooltip}</div>
+        <div className="flex flex-col gap-0.5">
+          {tooltip}
+          {opensUsage ? <span className="text-muted-foreground">{gt("Open usage")}</span> : null}
+        </div>
       </TooltipPopup>
     </Tooltip>
   );
