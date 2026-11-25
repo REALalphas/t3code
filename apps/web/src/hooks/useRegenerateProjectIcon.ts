@@ -7,6 +7,8 @@ import { appAtomRegistry } from "../rpc/atomRegistry";
 import { projectEnvironment, regeneratingProjectIconKeysAtom } from "../state/projects";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { stackedThreadToast, toastManager } from "../components/ui/toast";
+import { msg } from "gt-react";
+import { m } from "../i18n/messages";
 
 export function useRegenerateProjectIcon() {
   const updateProject = useOrchestrationCommand(projectEnvironment.update, {
@@ -22,7 +24,11 @@ export function useRegenerateProjectIcon() {
     next.add(key);
     appAtomRegistry.set(regeneratingProjectIconKeysAtom, next);
     const progressToast = toastManager.add(
-      stackedThreadToast({ type: "loading", title: "Regenerating project icon…", timeout: 0 }),
+      stackedThreadToast({
+        type: "loading",
+        title: m(msg("Regenerating project icon…")),
+        timeout: 0,
+      }),
     );
 
     const result = await updateProject({
@@ -41,16 +47,17 @@ export function useRegenerateProjectIcon() {
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Failed to regenerate project icon",
-          description: error instanceof Error ? error.message : "Could not generate project icon.",
+          title: m(msg("Failed to regenerate project icon")),
+          description:
+            error instanceof Error ? error.message : m(msg("Could not generate project icon.")),
         }),
       );
     } else {
       toastManager.add(
         stackedThreadToast({
           type: "info",
-          title: "Project icon updated",
-          description: "The icon was successfully regenerated.",
+          title: m(msg("Project icon updated")),
+          description: m(msg("The icon was successfully regenerated.")),
         }),
       );
     }

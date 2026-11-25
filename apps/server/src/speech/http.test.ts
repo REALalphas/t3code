@@ -415,6 +415,8 @@ effectIt.effect("tells the client why transcript cleanup failed", () =>
                 detail,
               }),
             ),
+          generateComposerAutocomplete: () => Effect.die("unused autocomplete"),
+          generateProjectIcon: () => Effect.die("not used"),
         }),
       ),
     );

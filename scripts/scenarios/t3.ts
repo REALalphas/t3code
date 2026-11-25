@@ -22,6 +22,7 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
+import * as Scope from "effect/Scope";
 import {
   Cookies,
   FetchHttpClient,
@@ -30,7 +31,7 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from "effect/http";
-import { RpcClient, RpcSerialization } from "effect/rpc";
+import { RpcClient, RpcClientError, RpcSerialization } from "effect/rpc";
 import { Socket } from "effect/socket";
 
 import { APP_DIR, T3_HOME } from "../e2e.config.ts";
@@ -90,6 +91,8 @@ type ServerApi = {
  * server started again on the same home, as the second server is for each test, gets a new one.
  */
 const serverApis = new Map<string, Promise<ServerApi>>();
+
+const makeWsRpcClient = RpcClient.make(WsRpcGroup);
 
 const uuid = SecureRandom.SecureRandom.pipe(
   Effect.flatMap((random) => random.uuidV4()),
@@ -297,7 +300,17 @@ export const environmentId = (baseUrl: string) =>
   );
 
 /** The typed RPC client of the server on `home` at `origin`, signed in through its own CLI. */
-export const rpcClient = Effect.fn("scenario.rpcClient")(function* (home: string, origin: string) {
+const rpcClientImpl = Effect.fn("scenario.rpcClient")(function* (
+  home: string,
+  origin: string,
+): Effect.fn.Return<
+  RpcClient.FromGroup<typeof WsRpcGroup, RpcClientError.RpcClientError>,
+  | ScenarioError
+  | HttpClientError.HttpClientError
+  | RpcClientError.RpcClientError
+  | Schema.SchemaError,
+  NodeServices.NodeServices | Scope.Scope
+> {
   const issued = yield* makeState(home).cli(["auth", "session", "issue", "--token-only"]);
   const { ticket } = yield* HttpClient.execute(
     HttpClientRequest.post(`${origin}/api/auth/websocket-ticket`).pipe(
@@ -320,8 +333,20 @@ export const rpcClient = Effect.fn("scenario.rpcClient")(function* (home: string
       Layer.provide(NodeWS.layerWebSocketConstructor),
     ),
   );
-  return yield* RpcClient.make(WsRpcGroup).pipe(Effect.provideContext(protocol));
+  return yield* makeWsRpcClient.pipe(Effect.provideContext(protocol));
 });
+
+export const rpcClient: (
+  home: string,
+  origin: string,
+) => Effect.Effect<
+  RpcClient.FromGroup<typeof WsRpcGroup, RpcClientError.RpcClientError>,
+  | ScenarioError
+  | HttpClientError.HttpClientError
+  | RpcClientError.RpcClientError
+  | Schema.SchemaError,
+  NodeServices.NodeServices | Scope.Scope
+> = rpcClientImpl;
 
 export const test = base.extend<{ t3: T3 }>({
   t3: async ({ app, browser }, use) => {

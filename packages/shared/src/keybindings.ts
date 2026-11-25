@@ -110,6 +110,7 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
     command: "composer.sendAndNewThread",
     when: "composerFocus && !draftThreadRoute",
   },
+  { key: "mod+shift+5", command: "usage.period.all", when: "usagePageOpen" },
   { key: "mod+n", command: "chat.new", when: "!terminalFocus" },
   { key: "mod+shift+o", command: "chat.new", when: "!terminalFocus" },
   { key: "mod+shift+n", command: "chat.newLocal", when: "!terminalFocus" },
@@ -149,7 +150,6 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+shift+2", command: "usage.period.week", when: "usagePageOpen" },
   { key: "mod+shift+3", command: "usage.period.month", when: "usagePageOpen" },
   { key: "mod+shift+4", command: "usage.period.quarter", when: "usagePageOpen" },
-  { key: "mod+shift+5", command: "usage.period.all", when: "usagePageOpen" },
 ];
 
 function normalizeKeyToken(token: string): string {

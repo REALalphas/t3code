@@ -12,6 +12,7 @@
           "catchConditionalRefailToCatchIf": "error",
           "tryCatchInEffectGen": "error",
           "schemaStructWithTag": "error",
+          "schemaClassMissingBrand": "off",
           "preferTypedSchemaDecoder": "error",
           "catchUnfailableEffect": "error",
           "raceFirstWithSleepToTimeout": "error",
