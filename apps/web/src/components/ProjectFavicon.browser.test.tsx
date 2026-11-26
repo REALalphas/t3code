@@ -13,6 +13,7 @@ import { toastManager } from "./ui/toast";
 
 const state = vi.hoisted(() => ({
   favicon: undefined as Atom.Atom<string | null> | undefined,
+  refresh: (() => {}) as () => void,
   updateProject: vi.fn<() => Promise<AtomCommandResult<void, ProjectMutationError>>>(),
 }));
 vi.mock("../state/use-orchestration-command", () => ({
@@ -23,10 +24,12 @@ vi.mock(import("../state/assets"), () => ({
     if (!state.favicon) throw new Error("Favicon resource not configured");
     return state.favicon;
   },
+  refreshProjectFaviconUrl: () => state.refresh(),
 }));
 
 function setup() {
   state.updateProject.mockReset();
+  state.refresh = () => {};
   const activeResources = new Set<string>();
   state.favicon = Atom.make((get) => {
     activeResources.add("favicon");
@@ -127,4 +130,67 @@ it("keeps displaying the current icon and reports the reason regeneration failed
   expect(addToast).toHaveBeenCalledWith(
     expect.objectContaining({ type: "error", description: "No model available." }),
   );
+});
+
+it("asks for a new URL when a remote icon's URL stops loading", async () => {
+  const registry = AtomRegistry.make();
+  const favicon = Atom.make<string | null>("http://127.0.0.1:9/api/assets/expired/favicon.svg");
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1"/></svg>';
+  const freshUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+  state.favicon = favicon;
+  state.refresh = () => registry.set(favicon, freshUrl);
+  const project: ProjectFaviconProject = {
+    environmentId: EnvironmentId.make("test"),
+    workspaceRoot: "/project",
+    title: "Project",
+    faviconPath: null,
+    projectIcon: null,
+  };
+  try {
+    await using screen = await render(
+      <RegistryContext value={registry}>
+        <ProjectFavicon project={project} />
+      </RegistryContext>,
+    );
+    await expect
+      .poll(() => screen.container.querySelector("img:not(.hidden)")?.getAttribute("src"))
+      .toBe(freshUrl);
+  } finally {
+    URL.revokeObjectURL(freshUrl);
+    registry.dispose();
+  }
+});
+
+it("asks for a new URL only once when the new URL fails too", async () => {
+  const registry = AtomRegistry.make();
+  const favicon = Atom.make<string | null>("http://127.0.0.1:9/api/assets/expired/favicon.svg");
+  const brokenUrl = "http://127.0.0.1:9/api/assets/broken/favicon.svg";
+  let refreshes = 0;
+  state.favicon = favicon;
+  state.refresh = () => {
+    refreshes += 1;
+    registry.set(favicon, brokenUrl);
+  };
+  const project: ProjectFaviconProject = {
+    environmentId: EnvironmentId.make("test"),
+    workspaceRoot: "/project",
+    title: "Project",
+    faviconPath: null,
+    projectIcon: null,
+  };
+  try {
+    await using screen = await render(
+      <RegistryContext value={registry}>
+        <ProjectFavicon project={project} />
+      </RegistryContext>,
+    );
+    await vi.waitFor(() => {
+      const image = screen.container.querySelector<HTMLImageElement>(`img[src="${brokenUrl}"]`);
+      expect(image?.complete).toBe(true);
+    });
+    expect(refreshes).toBe(1);
+  } finally {
+    registry.dispose();
+  }
 });

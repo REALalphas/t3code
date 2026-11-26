@@ -5,6 +5,8 @@ import {
   AgentFeedbackMode,
   DEFAULT_SERVER_SETTINGS,
   MAX_COMPOSER_AUTOCOMPLETE_CONTEXT_TOKENS,
+  DEFAULT_WORKFLOW_SKIPPED_RUNS_KEPT,
+  MAX_WORKFLOW_SKIPPED_RUNS_KEPT,
 } from "@t3tools/contracts";
 import { msg, T, useGT, useMessages } from "gt-react";
 
@@ -20,6 +22,8 @@ import { useTextGenerationTargets } from "../../textGenerators";
 import { getTextGenerationModelOptionsByInstance } from "../../modelSelection";
 import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { pickModelSelection } from "@t3tools/shared/model";
+import { NumberField, NumberFieldGroup, NumberFieldInput } from "../ui/number-field";
+import { commitNumberFieldOnEnter } from "./commitNumberFieldOnEnter";
 import { ScopedSwitch } from "./ScopedSwitch";
 import {
   SETTINGS_PICKER_TRIGGER_CLASSNAME,
@@ -49,6 +53,7 @@ export function LabsSettingsPanel() {
         {hasCloudPublicConfig() ? <GuestLinksRowWithSignIn /> : <GuestLinksRow />}
         <LinkedEnvironmentsRow />
         <WorkflowsRow />
+        <WorkflowSkippedRunsRow />
         <PromptSuggestionsRow />
         <ComposerAutocompleteSettings />
         <SimlockHostsRow />
@@ -67,6 +72,7 @@ function BoringSidebarRow() {
   return (
     <SettingsRow
       {...searchableSetting("boring-sidebar")}
+      devicePreference
       description={gt(
         "Group sidebar threads into project folders. Pinned threads stay on top, and Snoozed and Settled stay below the folders.",
       )}
@@ -95,6 +101,7 @@ function BoringSidebarMultilineRow() {
   return (
     <SettingsRow
       {...searchableSetting("boring-sidebar-multiline")}
+      devicePreference
       className="px-0 py-2 sm:px-0"
       description={gt(
         "Show folder threads on two lines: the title, then the branch, pull request, and agent.",
@@ -233,6 +240,61 @@ function WorkflowsRow() {
           onCheckedChange={(checked) => updateSettings({ workflowsEnabled: Boolean(checked) })}
           aria-label={gt("Workflows")}
         />
+      }
+    />
+  );
+}
+
+const NO_GROUPING: Intl.NumberFormatOptions = { useGrouping: false };
+
+export function WorkflowSkippedRunsRow() {
+  const searchableSetting = useSearchableSetting();
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  const mixed = useScopedSettingsMixed(["workflowSkippedRunsKept"]);
+  const gt = useGT();
+  if (!settings.workflowsEnabled) return null;
+  const kept = settings.workflowSkippedRunsKept;
+  return (
+    <SettingsRow
+      serverScoped
+      {...searchableSetting("workflow-skipped-runs")}
+      settingKeys={["workflowSkippedRunsKept"]}
+      description={gt(
+        "How many skipped runs each workflow keeps in its history. Older skipped runs are deleted; runs that did something are always kept.",
+      )}
+      resetAction={
+        mixed || kept !== DEFAULT_WORKFLOW_SKIPPED_RUNS_KEPT ? (
+          <SettingResetButton
+            ariaLabel={gt("Reset skipped runs kept to default")}
+            onClick={() =>
+              updateSettings({ workflowSkippedRunsKept: DEFAULT_WORKFLOW_SKIPPED_RUNS_KEPT })
+            }
+          />
+        ) : null
+      }
+      control={
+        <div className="w-24">
+          <NumberField
+            value={mixed ? null : kept}
+            min={0}
+            max={MAX_WORKFLOW_SKIPPED_RUNS_KEPT}
+            format={NO_GROUPING}
+            size="sm"
+            onValueCommitted={(value) => {
+              if (value === null || !Number.isInteger(value) || (!mixed && value === kept)) return;
+              updateSettings({ workflowSkippedRunsKept: value });
+            }}
+          >
+            <NumberFieldGroup>
+              <NumberFieldInput
+                aria-label={gt("Skipped runs kept")}
+                placeholder={mixed ? gt("Mixed") : undefined}
+                onKeyDown={commitNumberFieldOnEnter}
+              />
+            </NumberFieldGroup>
+          </NumberField>
+        </div>
       }
     />
   );
