@@ -6,9 +6,11 @@ import { Pressable, View } from "react-native";
 import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { AppText as Text } from "../../components/ui/AppText";
 import { ProviderIcon } from "../../components/ProviderIcon";
+import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 
 export function ChatGptSharingStatus({ provider }: { provider: ServerProvider | null }) {
   const gt = useGT();
+  const { hideAccountEmails } = useAppearancePreferences();
   if (!usesChatGptSharing(provider)) return null;
   return (
     <View className="flex-row items-center justify-between gap-3 px-3 py-1">
@@ -20,7 +22,7 @@ export function ChatGptSharingStatus({ provider }: { provider: ServerProvider | 
           Dialog.alert(
             gt("ChatGPT sharing is on"),
             [
-              provider?.auth.email,
+              hideAccountEmails && provider?.auth.email ? "••••••@••••••" : provider?.auth.email,
               gt(
                 "Eligible usage uses your ChatGPT plan. Credit settings and limits are managed in ChatGPT.",
               ),

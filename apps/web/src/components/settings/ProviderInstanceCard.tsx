@@ -65,7 +65,7 @@ import {
 import { ProviderModelsSection } from "./ProviderModelsSection";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import { ProviderAccentColorPicker } from "./ProviderAccentColorPicker";
-import { RedactedSensitiveText } from "./RedactedSensitiveText";
+import { AccountEmailText } from "./RedactedSensitiveText";
 import { SettingResetButton, SettingsRow, SettingsSection } from "./settingsLayout";
 import { AcpSessionManagementSection } from "./AcpSessionManagementSection";
 import { FoldedSettingsSection } from "./FoldedSettingsSection";
@@ -201,22 +201,6 @@ export function deriveProviderModelsForDisplay(input: {
         ],
   );
   return [...serverModels, ...customModels];
-}
-
-function ProviderAuthEmail(props: { readonly email: string | undefined }) {
-  const gt = useGT();
-  const email = props.email?.trim();
-  if (!email) return null;
-
-  return (
-    <RedactedSensitiveText
-      value={email}
-      ariaLabel={gt("Toggle account email visibility")}
-      revealTooltip={gt("Click to reveal email")}
-      hideTooltip={gt("Click to hide email")}
-      className="max-w-full truncate"
-    />
-  );
 }
 
 function readProviderEnvironmentVariable(
@@ -1025,7 +1009,7 @@ export function ProviderInstanceCard({
           <T>
             Authenticated as{" "}
             <Var>
-              <ProviderAuthEmail email={authEmail} />
+              <AccountEmailText value={authEmail} className="max-w-full truncate" />
             </Var>
           </T>
         </span>

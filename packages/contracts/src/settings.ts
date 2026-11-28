@@ -431,6 +431,7 @@ export const ClientSettingsSchema = Schema.Struct({
   appearanceContrast: AppearanceContrast.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_APPEARANCE_CONTRAST)),
   ),
+  hideAccountEmails: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   // Zero avoids per-frame layout work from width/height transitions.
   panelAnimationDurationMs: PanelAnimationDurationMs.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_PANEL_ANIMATION_DURATION_MS)),
@@ -2160,6 +2161,7 @@ export const ClientSettingsPatch = Schema.Struct({
   loadBalancingEnabled: Schema.optionalKey(Schema.Boolean),
   loadBalancingWeights: Schema.optionalKey(LoadBalancingWeights),
   appearanceContrast: Schema.optionalKey(AppearanceContrast),
+  hideAccountEmails: Schema.optionalKey(Schema.Boolean),
   panelAnimationDurationMs: Schema.optionalKey(PanelAnimationDurationMs),
   browserDefaultViewport: Schema.optionalKey(PreviewViewportSetting),
   browserDefaultZoomFactor: Schema.optionalKey(PreviewZoomFactor),

@@ -154,6 +154,7 @@ export interface Preferences {
   readonly codeFontSize?: number | null;
   readonly codeWordBreak?: boolean;
   readonly mathRenderingEnabled?: boolean;
+  readonly hideAccountEmails?: boolean;
   /** Unset means on: crash reports are sent unless the user turns them off. */
   readonly crashReportsEnabled?: boolean;
   /** Unset means on: connection traces are sent unless the user turns them off. */
@@ -253,6 +254,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     codeFontSize?: number | null;
     codeWordBreak?: boolean;
     mathRenderingEnabled?: boolean;
+    hideAccountEmails?: boolean;
     crashReportsEnabled?: boolean;
     connectionTracesEnabled?: boolean;
     connectOnboardingOptOutAccounts?: ReadonlyArray<string>;
@@ -353,6 +355,8 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   if (typeof parsed.codeWordBreak === "boolean") preferences.codeWordBreak = parsed.codeWordBreak;
   if (typeof parsed.mathRenderingEnabled === "boolean")
     preferences.mathRenderingEnabled = parsed.mathRenderingEnabled;
+  if (typeof parsed.hideAccountEmails === "boolean")
+    preferences.hideAccountEmails = parsed.hideAccountEmails;
   if (typeof parsed.crashReportsEnabled === "boolean") {
     preferences.crashReportsEnabled = parsed.crashReportsEnabled;
   }

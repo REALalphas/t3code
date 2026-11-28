@@ -33,7 +33,7 @@ import { cn } from "../../lib/utils";
 import { formatUpcomingTimestamp } from "../../timestampFormat";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import { providerClients } from "../settings/providerDriverMeta";
-import { RedactedSensitiveText } from "../settings/RedactedSensitiveText";
+import { AccountEmailText } from "../settings/RedactedSensitiveText";
 import { Button } from "../ui/button";
 import { OpenAI } from "../Icons";
 import { Alert, AlertTitle } from "../ui/alert";
@@ -172,15 +172,7 @@ function SegmentPopover({
             {account.displayName ?? providerClients.get(account.driver)?.label ?? account.driver}
           </span>
         </span>
-        {account.email ? (
-          <RedactedSensitiveText
-            value={account.email}
-            ariaLabel={gt("Toggle account email visibility")}
-            revealTooltip={gt("Click to reveal email")}
-            hideTooltip={gt("Click to hide email")}
-            className="w-fit"
-          />
-        ) : null}
+        {account.email ? <AccountEmailText value={account.email} className="w-fit" /> : null}
       </div>
       <div className="flex flex-col gap-1 border-t border-border/60 pt-2.5">
         {account.plan ? (

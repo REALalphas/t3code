@@ -12,6 +12,7 @@ import {
   ClerkUserProfileRow,
 } from "./ClerkUserProfilePage";
 import { useT3ChatLink } from "./useT3ChatLink";
+import { AccountEmailText } from "../settings/RedactedSensitiveText";
 
 function planLabel(link: RelayT3ChatLink): ReactNode {
   switch (link.plan) {
@@ -94,7 +95,7 @@ export function T3ChatUserProfilePage() {
             <div className="flex items-start gap-4">
               <div className="min-w-0 flex-1">
                 <h3 className="truncate text-sm leading-4.5 font-medium text-foreground">
-                  {link ? link.email : gt("Not linked")}
+                  {link ? <AccountEmailText value={link.email} /> : gt("Not linked")}
                 </h3>
                 <p className="mt-1 text-xs leading-4.5 text-muted-foreground">
                   {link ? (

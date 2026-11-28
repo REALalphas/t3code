@@ -17,6 +17,7 @@ import { lazy, Suspense, useRef, useState } from "react";
 import { CopyIcon } from "lucide-react";
 
 import { writeTextToClipboard } from "../../hooks/useCopyToClipboard";
+import { useClientSettings } from "../../hooks/useSettings";
 import { isWebUrl } from "../../browser/webUrl";
 import { ensureLocalApi } from "../../localApi";
 import { useEnvironmentQuery } from "../../state/query";
@@ -45,6 +46,7 @@ export function ProviderAuthenticationSection({
   readonly readOnly: boolean;
 }) {
   const gt = useGT();
+  const hideAccountEmails = useClientSettings((settings) => settings.hideAccountEmails);
   const target = { environmentId, input: { instanceId } };
   const query = useEnvironmentQuery(serverEnvironment.providerAuthState(target), useMessages());
   const commands = { reportFailure: false, reportDefect: false };
@@ -183,11 +185,12 @@ export function ProviderAuthenticationSection({
             <T>
               Signed in as{" "}
               <RedactedSensitiveText
-                key={provider.auth.email}
+                key={`${provider.auth.email}:${hideAccountEmails}`}
                 value={provider.auth.email}
                 ariaLabel={gt("Toggle account email visibility")}
                 revealTooltip={gt("Click to reveal email")}
                 hideTooltip={gt("Click to hide email")}
+                redact={hideAccountEmails}
                 className="max-w-full truncate"
               />
             </T>

@@ -10,6 +10,7 @@ import { formatUpcomingTimestamp } from "../../timestampFormat";
 import { Button } from "../ui/button";
 import { providerClients } from "../settings/providerDriverMeta";
 import { RedactedSensitiveText } from "../settings/RedactedSensitiveText";
+import { useClientSettings } from "../../hooks/useSettings";
 import { LimitWindows, ResetCredits } from "../usage/UsageLimits";
 import { ComposerBanner } from "./ComposerBanner";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
@@ -27,16 +28,18 @@ function accountLabel(account: UsageLimitsReport["accounts"][number]): string {
 
 function AccountSummary({ account }: { readonly account: UsageLimitsReport["accounts"][number] }) {
   const gt = useGT();
+  const hideAccountEmails = useClientSettings((settings) => settings.hideAccountEmails);
   const label = accountLabel(account);
   return (
     <>
       {label.includes("@") ? (
         <RedactedSensitiveText
-          key={label}
+          key={`${label}:${hideAccountEmails}`}
           value={label}
           ariaLabel={gt("Toggle account label visibility")}
           revealTooltip={gt("Click to reveal account")}
           hideTooltip={gt("Click to hide account")}
+          redact={hideAccountEmails}
           className="max-w-full truncate align-bottom font-sans text-xs leading-normal"
         />
       ) : (

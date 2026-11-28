@@ -106,6 +106,7 @@ export function AppearanceSettingsPanel() {
   } = useTheme();
   const gt = useGT();
   const m = useMessages();
+  const hideAccountEmailsSetting = searchableSetting("hide-account-emails");
   const customThemes = useCustomThemes();
   const [isImportThemeOpen, setIsImportThemeOpen] = useState(false);
   const settings = useScopedSettings();
@@ -407,6 +408,17 @@ export function AppearanceSettingsPanel() {
                 updateSettings({ mathRenderingEnabled: Boolean(checked) })
               }
               aria-label={gt("Render math")}
+            />
+          }
+        />
+        <SettingsRow
+          {...hideAccountEmailsSetting}
+          description={gt("Mask account email addresses until you reveal them.")}
+          control={
+            <Switch
+              checked={settings.hideAccountEmails}
+              onCheckedChange={(hideAccountEmails) => updateSettings({ hideAccountEmails })}
+              aria-label={hideAccountEmailsSetting.title}
             />
           }
         />

@@ -171,6 +171,11 @@ vi.mock(import("../ProviderUpdatesAction"), async (original) => ({
 }));
 
 import { appAtomRegistry } from "~/rpc/atomRegistry";
+import {
+  __resetClientSettingsPersistenceForTests,
+  __setClientSettingsForTests,
+  persistClientSettingsPatch,
+} from "../../hooks/useSettings";
 import { EnvironmentProviderSettings } from "./ProviderSettingsPanel";
 
 const environmentId = EnvironmentId.make("remote-device");
@@ -486,11 +491,14 @@ describe("EnvironmentProviderSettings provider list", () => {
 describe("EnvironmentProviderSettings account email", () => {
   it("keeps the real email until the hide blur finishes", async () => {
     await setup();
+    __setClientSettingsForTests(DEFAULT_UNIFIED_SETTINGS);
+    using _settings = { [Symbol.dispose]: __resetClientSettingsPersistenceForTests };
     const email = "developer@example.com";
     await setProviders([{ ...provider(), auth: { status: "authenticated", email } }]);
     await using _screen = await render(panel({ targetInstanceId: codexId }));
     const toggle = page.getByRole("button", { name: "Toggle account email visibility" });
     const button = toggle.element() as HTMLButtonElement;
+    expect(button.textContent).not.toBe(email);
 
     await act(() => button.click());
     for (const animation of button.getAnimations()) animation.finish();
@@ -507,6 +515,14 @@ describe("EnvironmentProviderSettings account email", () => {
     expect(button.textContent).toBe(email);
 
     await act(() => blur.finish());
+    await expect.element(toggle).not.toHaveTextContent(email);
+
+    const save = vi.fn(async () => undefined);
+    await act(() => persistClientSettingsPatch({ hideAccountEmails: false }, save));
+    await expect.element(page.getByText(email, { exact: true })).toBeVisible();
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ hideAccountEmails: false }));
+
+    await act(() => persistClientSettingsPatch({ hideAccountEmails: true }, save));
     await expect.element(toggle).not.toHaveTextContent(email);
   });
 });

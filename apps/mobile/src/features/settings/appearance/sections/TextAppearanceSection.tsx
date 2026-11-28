@@ -15,8 +15,15 @@ import { SettingsSwitchRow } from "../../components/SettingsSwitchRow";
 
 export function TextAppearanceSection() {
   const gt = useGT();
-  const { isReady, appearance, setBaseFontSize, mathRenderingEnabled, setMathRenderingEnabled } =
-    useAppearancePreferences();
+  const {
+    isReady,
+    appearance,
+    setBaseFontSize,
+    mathRenderingEnabled,
+    setMathRenderingEnabled,
+    hideAccountEmails,
+    setHideAccountEmails,
+  } = useAppearancePreferences();
 
   return (
     <SettingsSection title={gt("Text", { $context: "settings section for text size" })}>
@@ -39,6 +46,14 @@ export function TextAppearanceSection() {
         label={gt("Render math")}
         value={mathRenderingEnabled}
         onValueChange={setMathRenderingEnabled}
+      />
+      <SettingsSwitchRow
+        disabled={!isReady}
+        icon="eye.slash"
+        label={gt("Hide account emails")}
+        subtitle={gt("Mask account email addresses until you reveal them.")}
+        value={hideAccountEmails}
+        onValueChange={setHideAccountEmails}
       />
     </SettingsSection>
   );

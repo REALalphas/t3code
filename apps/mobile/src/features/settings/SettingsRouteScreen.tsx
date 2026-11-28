@@ -26,6 +26,7 @@ import { hasCloudPublicConfig } from "../cloud/publicConfig";
 import { useAdaptiveWorkspaceLayout } from "../layout/adaptive-workspace-context";
 import { useSavedRemoteConnections } from "../../state/use-remote-environment-registry";
 import { SettingsRow } from "./components/SettingsRow";
+import { useAppearancePreferences } from "./appearance/AppearancePreferencesProvider";
 import { SettingsSection, SettingsSidebarContext } from "./components/SettingsSection";
 import { SettingsScreen } from "./components/SettingsScreen";
 import type { SettingsPageTarget } from "./components/settings-page-targets";
@@ -115,11 +116,17 @@ function ConfiguredSettingsRouteScreen() {
   const { isLoaded, isSignedIn } = useAuth({ treatPendingAsSignedOut: false });
   const { user } = useUser();
   const { savedConnectionsById } = useSavedRemoteConnections();
+  const { hideAccountEmails } = useAppearancePreferences();
+  const email = hideAccountEmails
+    ? user?.primaryEmailAddress?.emailAddress
+      ? "••••••@••••••"
+      : undefined
+    : user?.primaryEmailAddress?.emailAddress;
   const accountLabel = !isLoaded
     ? gt("Checking")
     : !isSignedIn
       ? gt("Sign in")
-      : (user?.primaryEmailAddress?.emailAddress ?? gt("Signed in"));
+      : (email ?? gt("Signed in"));
 
   return (
     <SettingsList
