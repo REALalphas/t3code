@@ -76,31 +76,29 @@ export function ThreadDetailsUsage({
       showHeading={false}
     >
       <div className="grid grid-cols-[auto_minmax(3rem,1fr)_auto] gap-x-3 text-xs">
-        {resolved?.kind === "pool" ? (
-          resolved.windows.map((window) => <PoolRow key={window.id} window={window} now={now} />)
-        ) : resolved?.kind === "instance" ? (
-          (quotas.length === 0 || limitsNotice(resolved.limits) === null) && (
-            <InstanceRows limits={resolved.limits} now={now} />
-          )
-        ) : (
-          resolved && (
-            <>
-              {resolved.isLimited ? (
-                <UsageRow
-                  label={gt("Limits", { $context: "usage limits row label" })}
-                  fill={null}
-                  tone="warning"
-                  value={gt("Limited")}
-                  tooltip={<span className="text-foreground">{gt("Limited plan")}</span>}
-                  opensUsage
-                />
-              ) : null}
-              {resolved.windows.map((window) => (
-                <LimitRow key={window.id} window={window} now={now} />
-              ))}
-            </>
-          )
-        )}
+        {resolved?.kind === "pool"
+          ? resolved.windows.map((window) => <PoolRow key={window.id} window={window} now={now} />)
+          : resolved?.kind === "instance"
+            ? (quotas.length === 0 || limitsNotice(resolved.limits) === null) && (
+                <InstanceRows limits={resolved.limits} now={now} />
+              )
+            : resolved && (
+                <>
+                  {resolved.isLimited ? (
+                    <UsageRow
+                      label={gt("Limits", { $context: "usage limits row label" })}
+                      fill={null}
+                      tone="warning"
+                      value={gt("Limited")}
+                      tooltip={<span className="text-foreground">{gt("Limited plan")}</span>}
+                      opensUsage
+                    />
+                  ) : null}
+                  {resolved.windows.map((window) => (
+                    <LimitRow key={window.id} window={window} now={now} />
+                  ))}
+                </>
+              )}
         {quotas.map(({ key, accountLabel, window }) => (
           <LimitRow key={key} window={window} now={now} accountLabel={accountLabel} />
         ))}
