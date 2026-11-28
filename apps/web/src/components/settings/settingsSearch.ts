@@ -409,6 +409,11 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: [msg("latex tex katex equations formulas markdown")],
   },
   {
+    id: "hide-account-emails",
+    title: msg("Hide account emails"),
+    to: "/settings/appearance",
+  },
+  {
     id: "panel-animations",
     title: msg("Panel animations"),
     to: "/settings/appearance",

@@ -31,6 +31,7 @@ import { SymbolView } from "../../components/ui/AppSymbol";
 import { AppText as Text } from "../../components/ui/AppText";
 import { ProviderIcon } from "../../components/ProviderIcon";
 import type { MessageResolver } from "../../i18n/messages";
+import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { SettingsScreen } from "../settings/components/SettingsScreen";
 import { environmentPresentations } from "../../state/presentation";
 import { refillLabel, ResetCredits, resetLabels } from "./UsageLimitsSection";
@@ -617,6 +618,21 @@ type AccountScreenProps = StaticScreenProps<{
   environmentIds: readonly string[] | null;
 }>;
 
+function RedactedUsageAccountEmail({ email }: { readonly email: string }) {
+  const gt = useGT();
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={revealed ? gt("Hide account email") : gt("Reveal account email")}
+      onPress={() => setRevealed((value) => !value)}
+      className="min-h-[44px] justify-center"
+    >
+      <Text className="text-sm text-foreground-muted">{revealed ? email : "••••••@••••••"}</Text>
+    </Pressable>
+  );
+}
+
 export function UsageLimitAccountScreen({ route }: AccountScreenProps) {
   const insets = useSafeAreaInsets();
   const presentations = useAtomValue(environmentPresentations.presentationsWithProvidersAtom);
@@ -636,7 +652,7 @@ export function UsageLimitAccountScreen({ route }: AccountScreenProps) {
   const window = pool?.members.find((member) => member.account.key === accountKey)?.window;
   const evenPace = window ? paceRemainingPercent(window, now) : null;
   const reset = pool?.resets.find((candidate) => candidate.member.account.key === accountKey);
-  const [revealed, setRevealed] = useState(false);
+  const { hideAccountEmails } = useAppearancePreferences();
   const gt = useGT();
   return (
     <SettingsScreen title={gt("Account", { $context: "screen title" })}>
@@ -661,18 +677,11 @@ export function UsageLimitAccountScreen({ route }: AccountScreenProps) {
                 </Text>
               </View>
               {account.email ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    revealed ? gt("Hide account email") : gt("Reveal account email")
-                  }
-                  onPress={() => setRevealed((value) => !value)}
-                  className="min-h-[44px] justify-center"
-                >
-                  <Text className="text-sm text-foreground-muted">
-                    {revealed ? account.email : "••••••@••••••"}
-                  </Text>
-                </Pressable>
+                hideAccountEmails ? (
+                  <RedactedUsageAccountEmail key={account.email} email={account.email} />
+                ) : (
+                  <Text className="text-sm text-foreground-muted">{account.email}</Text>
+                )
               ) : null}
               {account.plan ? (
                 <Text selectable className="text-sm text-foreground-muted">

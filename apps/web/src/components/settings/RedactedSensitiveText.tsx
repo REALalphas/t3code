@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { flushSync } from "react-dom";
+import { useGT } from "gt-react";
 
+import { useClientSettings } from "../../hooks/useSettings";
 import { cn } from "../../lib/utils";
 import { SharedTooltipTrigger } from "../ui/shared-tooltip";
 
@@ -30,7 +32,8 @@ export function RedactedSensitiveText(props: {
   readonly ariaLabel: string;
   readonly revealTooltip: string;
   readonly hideTooltip: string;
-  readonly className?: string;
+  readonly redact?: boolean;
+  readonly className?: string | undefined;
 }) {
   const [visibility, setVisibility] = useState<"hidden" | "hiding" | "revealed">("hidden");
   const revealed = visibility === "revealed";
@@ -38,6 +41,14 @@ export function RedactedSensitiveText(props: {
   const redacted = value ? redactedPlaceholder(value) : "";
 
   if (!value) return null;
+
+  if (props.redact === false) {
+    return (
+      <span className={cn("inline-block min-w-0 text-muted-foreground", props.className)}>
+        {value}
+      </span>
+    );
+  }
 
   return (
     <SharedTooltipTrigger
@@ -72,5 +83,35 @@ export function RedactedSensitiveText(props: {
       }
       label={revealed ? props.hideTooltip : props.revealTooltip}
     />
+  );
+}
+
+export function AccountEmailText(props: {
+  readonly value: string | null | undefined;
+  readonly className?: string;
+}) {
+  const gt = useGT();
+  const hideAccountEmails = useClientSettings((settings) => settings.hideAccountEmails);
+  const value = props.value?.trim();
+  if (!value) return null;
+
+  return hideAccountEmails ? (
+    <RedactedSensitiveText
+      key={`${value}:${hideAccountEmails}`}
+      value={value}
+      ariaLabel={gt("Toggle account email visibility")}
+      revealTooltip={gt("Click to reveal email")}
+      hideTooltip={gt("Click to hide email")}
+      className={props.className}
+    />
+  ) : (
+    <span
+      className={cn(
+        "inline-block min-w-0 font-mono text-2xs leading-normal text-muted-foreground",
+        props.className,
+      )}
+    >
+      {value}
+    </span>
   );
 }

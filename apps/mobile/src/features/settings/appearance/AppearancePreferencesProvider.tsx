@@ -73,6 +73,8 @@ interface AppearancePreferencesContextValue {
   readonly setCodeWordBreak: (value: boolean) => void;
   readonly mathRenderingEnabled: boolean;
   readonly setMathRenderingEnabled: (value: boolean) => void;
+  readonly hideAccountEmails: boolean;
+  readonly setHideAccountEmails: (value: boolean) => void;
 }
 
 const AppearancePreferencesContext = createContext<AppearancePreferencesContextValue | null>(null);
@@ -296,6 +298,9 @@ export function AppearancePreferencesProvider(props: { readonly children: ReactN
   const setMathRenderingEnabled = (value: boolean) =>
     updatePreferences({ mathRenderingEnabled: value });
 
+  const hideAccountEmails = storedPreferences?.hideAccountEmails !== false;
+  const setHideAccountEmails = (value: boolean) => updatePreferences({ hideAccountEmails: value });
+
   const value = useMemo(
     (): AppearancePreferencesContextValue => ({
       appearance,
@@ -320,6 +325,8 @@ export function AppearancePreferencesProvider(props: { readonly children: ReactN
       setCodeWordBreak,
       mathRenderingEnabled,
       setMathRenderingEnabled,
+      hideAccountEmails,
+      setHideAccountEmails,
     }),
     [
       appearance,
@@ -343,6 +350,8 @@ export function AppearancePreferencesProvider(props: { readonly children: ReactN
       setCodeWordBreak,
       mathRenderingEnabled,
       setMathRenderingEnabled,
+      hideAccountEmails,
+      setHideAccountEmails,
     ],
   );
 

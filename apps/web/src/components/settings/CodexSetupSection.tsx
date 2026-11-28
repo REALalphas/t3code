@@ -47,7 +47,8 @@ import { ChatGptUsageButton } from "./ChatGptUsageButton";
 import { ChatGptAccountPicker } from "./ChatGptAccountPicker";
 import { Input } from "../ui/input";
 import { OpenAI } from "../Icons";
-import { RedactedSensitiveText } from "./RedactedSensitiveText";
+import { RedactedSensitiveText, redactedPlaceholder } from "./RedactedSensitiveText";
+import { useClientSettings } from "../../hooks/useSettings";
 import { SettingsRow } from "./settingsLayout";
 import { AddCodexAccountDialog } from "./AddCodexAccountDialog";
 import { getOnboardingProviderState } from "../../onboarding/providerReadiness.logic";
@@ -111,6 +112,7 @@ interface CodexSetupSectionProps {
 export function CodexSetupSection(props: CodexSetupSectionProps) {
   const gt = useGT();
   const m = useMessages();
+  const hideAccountEmails = useClientSettings((settings) => settings.hideAccountEmails);
   const [requested, setRequested] = useState(false);
   // A policy that owns Codex's launch settings also rules out ChatGPT's own runtime.
   const codexLocks = managedInstanceLocks(
@@ -131,19 +133,19 @@ export function CodexSetupSection(props: CodexSetupSectionProps) {
         description={
           existingReady ? (
             props.provider?.auth.email?.trim() ? (
-              <>
-                <T>
-                  Signed in as{" "}
-                  <RedactedSensitiveText
-                    value={props.provider.auth.email.trim()}
-                    ariaLabel={gt("Toggle account email visibility")}
-                    revealTooltip={gt("Click to reveal email")}
-                    hideTooltip={gt("Click to hide email")}
-                    className="break-all"
-                  />
-                  .
-                </T>
-              </>
+              <T>
+                Signed in as{" "}
+                <RedactedSensitiveText
+                  key={`${props.provider.auth.email.trim()}:${hideAccountEmails}`}
+                  value={props.provider.auth.email.trim()}
+                  ariaLabel={gt("Toggle account email visibility")}
+                  revealTooltip={gt("Click to reveal email")}
+                  hideTooltip={gt("Click to hide email")}
+                  redact={hideAccountEmails}
+                  className="break-all"
+                />
+                .
+              </T>
             ) : (
               gt("Connected with your Codex CLI.")
             )
@@ -285,6 +287,9 @@ function ManagedCodexSetup({
   readonly allowExistingCli?: boolean;
 }) {
   const gt = useGT();
+  const hideAccountEmails = useClientSettings((settings) => settings.hideAccountEmails);
+  const displayAccountEmail = (email: string) =>
+    hideAccountEmails ? redactedPlaceholder(email) : email;
   const target = { environmentId, input: { instanceId } };
   const authQuery = useEnvironmentQuery(serverEnvironment.providerAuthState(target), useMessages());
   const installQuery = useEnvironmentQuery(
@@ -659,29 +664,33 @@ function ManagedCodexSetup({
     runtimeDescription
   ) : authActive || auth?.phase === "failed" || auth?.phase === "cancelled" ? (
     auth?.phase === "waiting" && requestedAccountEmail ? (
-      gt("Continue as {email} on OpenAI.", { email: requestedAccountEmail })
+      gt("Continue as {email} on OpenAI.", {
+        email: displayAccountEmail(requestedAccountEmail),
+      })
     ) : (
       (auth?.message ?? gt("Finish signing in in your browser."))
     )
   ) : authenticated ? (
     provider?.auth.email?.trim() ? (
-      <>
-        <T>
-          Signed in as{" "}
-          <RedactedSensitiveText
-            value={provider.auth.email.trim()}
-            ariaLabel={gt("Toggle account email visibility")}
-            revealTooltip={gt("Click to reveal email")}
-            hideTooltip={gt("Click to hide email")}
-          />
-          .
-        </T>
-      </>
+      <T>
+        Signed in as{" "}
+        <RedactedSensitiveText
+          key={`${provider.auth.email.trim()}:${hideAccountEmails}`}
+          value={provider.auth.email.trim()}
+          ariaLabel={gt("Toggle account email visibility")}
+          revealTooltip={gt("Click to reveal email")}
+          hideTooltip={gt("Click to hide email")}
+          redact={hideAccountEmails}
+        />
+        .
+      </T>
     ) : (
       gt("Signed in with ChatGPT.")
     )
+  ) : reconnectEmail ? (
+    displayAccountEmail(reconnectEmail)
   ) : (
-    (reconnectEmail ?? gt("Use your ChatGPT subscription."))
+    gt("Use your ChatGPT subscription.")
   );
 
   const handoffUrl =
@@ -861,19 +870,19 @@ function ManagedCodexSetup({
               runtimeDescription
             ) : authenticated ? (
               provider?.auth.email?.trim() ? (
-                <>
-                  <T>
-                    Signed in as{" "}
-                    <RedactedSensitiveText
-                      value={provider.auth.email.trim()}
-                      ariaLabel={gt("Toggle account email visibility")}
-                      revealTooltip={gt("Click to reveal email")}
-                      hideTooltip={gt("Click to hide email")}
-                      className="break-all"
-                    />
-                    .
-                  </T>
-                </>
+                <T>
+                  Signed in as{" "}
+                  <RedactedSensitiveText
+                    key={`${provider.auth.email.trim()}:${hideAccountEmails}`}
+                    value={provider.auth.email.trim()}
+                    ariaLabel={gt("Toggle account email visibility")}
+                    revealTooltip={gt("Click to reveal email")}
+                    hideTooltip={gt("Click to hide email")}
+                    redact={hideAccountEmails}
+                    className="break-all"
+                  />
+                  .
+                </T>
               ) : (
                 gt("Connected to ChatGPT.")
               )

@@ -36,6 +36,7 @@ import { useSettingsEnvironmentMenu } from "./components/SettingsEnvironmentFilt
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
 import { AddClaudeAccount, ClaudeAccount } from "./ClaudeAccounts";
+import { useAppearancePreferences } from "./appearance/AppearancePreferencesProvider";
 import { CLAUDE_DRIVER } from "./claude-accounts";
 import { useSettingsEnvironmentFilter, type SettingsTarget } from "./settings-environment-filter";
 
@@ -436,7 +437,7 @@ function ProviderAccount({
             : "min-h-16 flex-row items-center gap-3 px-4 py-3"
         }
       >
-        <ProviderAccountSummary key={email} name={name} status={status} email={email} />
+        <ProviderAccountSummary name={name} status={status} email={email} />
         {trailing}
       </View>
       {interaction?.type === "deviceCode" ||
@@ -541,32 +542,47 @@ function ProviderAccount({
   );
 }
 
-function ProviderAccountSummary({
-  name,
-  status,
-  email,
-}: {
+interface ProviderAccountSummaryProps {
   readonly name: string;
   readonly status: string | null | undefined;
   readonly email: string | undefined;
-}) {
+}
+
+function ProviderAccountSummary(props: ProviderAccountSummaryProps) {
+  const { hideAccountEmails } = useAppearancePreferences();
+  return (
+    <ProviderAccountSummaryContent
+      key={`${hideAccountEmails ? "hidden" : "shown"}:${props.email ?? ""}`}
+      {...props}
+      hideEmail={hideAccountEmails}
+    />
+  );
+}
+
+function ProviderAccountSummaryContent({
+  name,
+  status,
+  email,
+  hideEmail,
+}: ProviderAccountSummaryProps & { readonly hideEmail: boolean }) {
   const gt = useGT();
   const [revealed, setRevealed] = useState(false);
+  const visibleEmail = !hideEmail || revealed ? email : undefined;
   const content = (
     <>
       <Text textRole="body" className="text-foreground" numberOfLines={1}>
         {name}
       </Text>
       <Text accessibilityLiveRegion="polite" textRole="footnote" className="text-foreground-muted">
-        {email ? `${status} · ${revealed ? email : "••••••@••••••"}` : status}
+        {email ? `${status} · ${visibleEmail ?? "••••••@••••••"}` : status}
       </Text>
     </>
   );
-  if (!email) {
+  if (!email || !hideEmail) {
     return (
       <View
         accessible
-        accessibilityLabel={[name, status].filter(Boolean).join(", ")}
+        accessibilityLabel={[name, status, visibleEmail].filter(Boolean).join(", ")}
         className="min-w-0 shrink grow gap-0.5"
       >
         {content}
@@ -576,7 +592,7 @@ function ProviderAccountSummary({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={[name, status, revealed ? email : null].filter(Boolean).join(", ")}
+      accessibilityLabel={[name, status, visibleEmail].filter(Boolean).join(", ")}
       accessibilityHint={revealed ? gt("Hides the account email") : gt("Reveals the account email")}
       onPress={() => setRevealed((value) => !value)}
       className="min-w-0 shrink grow gap-0.5"

@@ -332,6 +332,11 @@ describe("ClientSettings notifications", () => {
   });
 });
 
+it("hides account emails by default", () => {
+  expect(decodeClientSettings({}).hideAccountEmails).toBe(true);
+  expect(decodeClientSettings({ hideAccountEmails: false }).hideAccountEmails).toBe(false);
+});
+
 describe("ClientSettings quit confirmation", () => {
   it.each([
     [true, "hold"],

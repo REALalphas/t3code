@@ -33,6 +33,7 @@ import { serverEnvironment } from "../../state/server";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useNowMinuteMs } from "../../lib/clock";
+import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import {
   environmentIdsKey,
   limitsAutoRefreshSetAtom,
@@ -147,15 +148,20 @@ function WindowRow(props: {
 }
 
 function AccountInstanceLabel({ value }: { readonly value: string }) {
-  const [revealed, setRevealed] = useState(false);
-  const gt = useGT();
-  if (!value.includes("@")) {
+  const { hideAccountEmails } = useAppearancePreferences();
+  if (!hideAccountEmails || !value.includes("@")) {
     return (
       <Text className="shrink text-xs text-foreground-tertiary" numberOfLines={1}>
         · {value}
       </Text>
     );
   }
+  return <RedactedAccountInstanceLabel value={value} />;
+}
+
+function RedactedAccountInstanceLabel({ value }: { readonly value: string }) {
+  const [revealed, setRevealed] = useState(false);
+  const gt = useGT();
   return (
     <Pressable
       className="shrink active:opacity-60"
